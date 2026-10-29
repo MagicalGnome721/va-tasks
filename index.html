@@ -1379,6 +1379,84 @@ body.has-drawer .buddy[data-open="false"] { display: none; }
 @keyframes buddy-pop-in { from { opacity: 0; transform: scale(.7) translateY(30px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .buddy-pop[open] .buddy-pop-card { animation: none; } }
 @media (max-width: 480px) { .buddy-pop-card { margin-top: 120px; padding: 84px 18px 20px; } .buddy-pop-card img { top: -120px; width: 170px; height: 190px; } .buddy-pop-title { font-size: 19px; } }
+
+/* ===== Bảng đơn kiểu Notion (người order) ===== */
+#rt-root { min-width: 0; }
+.rt-head { padding: 4px 0 0; }
+.rt-title { display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 750; letter-spacing: -.01em; margin: 6px 0 14px; color: var(--ink); }
+.rt-badge-img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; }
+.rt-review { border: 1px solid color-mix(in srgb, var(--st-review) 45%, var(--line)); background: var(--st-review-bg); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+.rt-review-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--st-review-fg); }
+.rt-review-head .muted { font-size: 13px; }
+.rt-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.rt-tabs { display: flex; gap: 4px; }
+.rt-tab { border: 0; background: none; padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
+.rt-tab:hover { background: var(--surface-2); }
+.rt-tab[aria-selected="true"] { background: var(--surface-3); color: var(--ink); font-weight: 600; }
+.rt-spacer { flex: 1; }
+.rt-count { font-size: 13px; margin-right: 4px; }
+.rt-chip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.rt-chip[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-text); font-weight: 600; }
+.rt-icon-btn { position: relative; border: 0; background: none; width: 32px; height: 32px; border-radius: 8px; color: var(--brand); cursor: pointer; font-size: 16px; display: inline-grid; place-items: center; }
+.rt-icon-btn:hover { background: var(--surface-2); }
+.rt-icon-btn .ico { width: 17px; height: 17px; }
+.rt-badge:not(:empty) { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font-size: 10px; line-height: 15px; text-align: center; padding: 0 3px; }
+.rt-search { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surface); color: var(--muted); }
+.rt-search input { border: 0; outline: 0; background: none; font: inherit; font-size: 13px; width: 140px; padding: 6px 0; color: var(--ink); }
+.rt-scroll { overflow: auto; max-height: calc(100vh - 230px); margin-top: 2px; }
+.rt-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 14px; }
+.rt-th { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-align: left; font-weight: 500; }
+.rt-th.is-frozen { z-index: 4; }
+.rt-th-btn { display: flex; align-items: center; gap: 6px; width: 100%; height: 36px; padding: 0 8px; border: 0; background: none; font: inherit; color: var(--muted); cursor: pointer; white-space: nowrap; overflow: hidden; }
+.rt-th-btn:hover { background: var(--surface-2); }
+.rt-th-ico { font-size: 12px; opacity: .8; flex: none; }
+.rt-th-text { overflow: hidden; text-overflow: ellipsis; }
+.rt-sort { color: var(--brand); font-weight: 700; }
+.rt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex: none; }
+.rt-cell { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 6px 8px; height: 37px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface); }
+.rt-cell.is-wrap { white-space: normal; overflow-wrap: anywhere; }
+.rt-cell.is-frozen, .rt-calc.is-frozen { position: sticky; z-index: 1; }
+.rt-row.is-own { cursor: pointer; }
+.rt-row.is-own:hover .rt-cell { background: var(--surface-2); }
+.rt-row.is-locked .rt-cell { color: var(--ink-2); }
+.rt-row.is-locked { cursor: default; }
+.rt-row.is-saving { opacity: .6; }
+.rt-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.rt-name { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-weight: 600; color: var(--ink); vertical-align: middle; }
+.rt-row.is-locked .rt-name { font-weight: 500; color: var(--ink-2); }
+.rt-name-text { overflow: hidden; text-overflow: ellipsis; }
+.rt-cell.is-wrap .rt-name-text { white-space: normal; }
+.rt-doc { color: var(--faint); font-size: 12px; flex: none; }
+.rt-me { margin-left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--brand-soft); color: var(--brand-text); vertical-align: middle; }
+.rt-lock { font-size: 12px; color: var(--faint); font-style: italic; }
+.rt-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; margin: 1px 4px 1px 0; font-size: 13px; line-height: 20px; background: var(--tg-bg); color: var(--tg-fg); }
+.rt-tag[data-tone="0"] { --tg-bg: #f3e6f8; --tg-fg: #6d2c84; }
+.rt-tag[data-tone="1"] { --tg-bg: #fbe4dc; --tg-fg: #8f3417; }
+.rt-tag[data-tone="2"] { --tg-bg: #e2eefc; --tg-fg: #1d4f91; }
+.rt-tag[data-tone="3"] { --tg-bg: #e1f3ec; --tg-fg: #1b6b4c; }
+.rt-tag[data-tone="4"] { --tg-bg: #fcf1d8; --tg-fg: #7a5200; }
+.rt-tag[data-tone="5"] { --tg-bg: #fde4ec; --tg-fg: #932650; }
+.rt-tag[data-tone="6"] { --tg-bg: #ececec; --tg-fg: #444; }
+.rt-tag[data-tone="7"] { --tg-bg: #f3e9df; --tg-fg: #6b4426; }
+:root[data-theme="dark"] .rt-tag { background: color-mix(in srgb, var(--tg-fg) 35%, #1d1512); color: #f4e8e2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rt-tag { background: color-mix(in srgb, var(--tg-fg) 35%, #1d1512); color: #f4e8e2; } }
+.rt-prio { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 13px; background: color-mix(in srgb, var(--pr) 16%, transparent); color: color-mix(in srgb, var(--pr) 75%, var(--ink)); }
+.rt-group td { background: var(--surface-2); border-bottom: 1px solid var(--line); padding: 0; position: sticky; left: 0; }
+.rt-group-btn { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; font-size: 13px; padding: 7px 8px; cursor: pointer; color: var(--ink-2); position: sticky; left: 0; }
+.rt-group-btn[aria-expanded="false"] .ico { transform: rotate(-90deg); }
+.rt-calc { background: var(--surface); padding: 0; border-right: 1px solid transparent; }
+.rt-calc-btn { width: 100%; text-align: right; border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); padding: 7px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-calc-hint { opacity: 0; }
+.rt-calc-btn:hover { background: var(--surface-2); }
+.rt-calc-btn:hover .rt-calc-hint, .rt-calc-btn:focus-visible .rt-calc-hint { opacity: 1; }
+.rt-empty { padding: 32px; text-align: center; color: var(--muted); }
+.rt-newrow { display: inline-block; padding: 8px 10px; color: var(--muted); text-decoration: none; font-size: 14px; }
+.rt-newrow:hover { color: var(--ink); background: var(--surface-2); border-radius: 6px; }
+.rt-gallery { margin-top: 14px; }
+.rt-prog { display: inline-block; width: 44px; height: 6px; border-radius: 3px; background: var(--surface-3); margin-right: 6px; vertical-align: middle; overflow: hidden; }
+.rt-prog > span { display: block; height: 100%; background: var(--st-done); }
+.rt-check { display: inline-block; width: 18px; color: var(--brand); font-weight: 700; }
+@media (max-width: 720px) { .rt-title { font-size: 24px; } .rt-search input { width: 100px; } .rt-scroll { max-height: none; } }
 </style>
 </head>
 <body>
@@ -1795,7 +1873,17 @@ var Rules = (function () {
   function visibleTasks(user, tasks) {
     if (!user) return [];
     if (isVa(user) || isSystem(user)) return (tasks || []).slice();
-    return (tasks || []).filter(function (t) { return isOwnTask(user, t); });
+    // Người order thấy TOÀN BỘ hàng đợi, nhưng đơn của người khác chỉ còn dòng tóm tắt
+    // (server cắt trường chi tiết trước khi trả về — xem PUBLIC_TASK_KEYS).
+    return (tasks || []).map(function (t) { return isOwnTask(user, t) ? t : publicTask(t); });
+  }
+  // Trường được lộ ra trên đơn của người khác (bảng chung). Mọi trường khác bị cắt.
+  var PUBLIC_TASK_KEYS = ['id', 'name', 'project', 'assetType', 'team', 'requester', 'priority', 'status', 'assignee',
+    'deadline', 'requestDate', 'quantity', 'progress', 'sheetDeadlineWarning', 'size', 'parentId', 'queuePosition', 'queueTotal', 'childCount', 'childTotal', 'childDone', 'onHold', 'effectivePriority'];
+  function publicTask(t) {
+    var o = { _redacted: true };
+    PUBLIC_TASK_KEYS.forEach(function (k) { if (t && has(t, k)) o[k] = t[k]; });
+    return o;
   }
   function sanitizeConfigFor(user, config) {
     var c = clone(config) || {};
@@ -2852,7 +2940,7 @@ var Rules = (function () {
     roleOf: roleOf, systemUser: systemUser, vaNamesOf: vaNamesOf, isOwnTask: isOwnTask,
     can: can, allowedTransitions: allowedTransitions, transitionNeeds: transitionNeeds,
     visibleTasks: visibleTasks, sanitizeConfigFor: sanitizeConfigFor,
-    effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
+    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
@@ -3276,8 +3364,9 @@ function createDemoApi() {
       });
       if (changed) tasksSet(tasks);
       const cfg = cfgGet();
-      const visible = Rules.visibleTasks(user, tasks);
-      return { tasks: decorate(visible, tasks), meta: { serverTime: isoLocal(), sheetName: 'Demo', configVersion: cfg.version, warnings: user.role === 'va' ? warnings(tasks) : [], today: dToday() } };
+      // giống server: chú thích (vị trí hàng…) trên toàn bộ, rồi mới cắt theo quyền
+      const visible = Rules.visibleTasks(user, decorate(tasks, tasks));
+      return { tasks: visible, meta: { serverTime: isoLocal(), sheetName: 'Demo', configVersion: cfg.version, warnings: user.role === 'va' ? warnings(tasks) : [], today: dToday() } };
     }),
     getConfig: (opts) => run('getConfig', () => { const user = session(opts); return Object.assign(Rules.sanitizeConfigFor(user, cfgGet()), { aiEnabled: aiMode !== 'fail' }); }),
     create: (input, opts) => run('create', () => {
@@ -5035,7 +5124,7 @@ function orderCardHtml(t) {
     ${body}
   </article>`;
 }
-function renderMine(view) {
+function renderMineGallery(view) {
   if (!S.loaded) { view.innerHTML = S.loadError ? `<div class="view-head"><div><h1 class="view-title">Đơn của tôi</h1></div></div>${errorHtml(S.loadError)}` : loadingHtml('Đơn của tôi'); return; }
   const own = S.tasks.filter((t) => !isVA() || isOwnOrder(t));
   const byQ = (a, b) => ((queueInfoOf(a) || {}).position || 999) - ((queueInfoOf(b) || {}).position || 999) || idNum(a.id) - idNum(b.id);
@@ -5680,6 +5769,318 @@ async function adminAction(act) {
   }
   settingsUi.adminBusy = '';
   if (S.view === 'settings') renderView({ force: true });
+}
+
+// ============================================================================
+// Người order: Bảng đơn kiểu Notion (Table / Done / Gallery)
+// - Thấy TOÀN BỘ đơn của mọi team. Đơn của người khác đến từ server đã bị cắt
+//   trường chi tiết (t._redacted) → chỉ hiện dòng tóm tắt, không mở được.
+// - Công cụ cột: sắp xếp, lọc, nhóm, tính toán, cố định, ẩn, xuống dòng, đổi thứ tự.
+// - Cấu hình bảng lưu riêng theo từng người (localStorage, theo email).
+// ============================================================================
+const RT_COLS = [ // đúng thứ tự cột trong Google Sheet
+  { k: 'id', label: 'ID', w: 100, icon: '№' },
+  { k: 'team', label: 'Team request', w: 130, icon: '◉' },
+  { k: 'project', label: 'Dự án', w: 120, icon: '◉' },
+  { k: 'assetType', label: 'Loại asset', w: 160, icon: '☰' },
+  { k: 'name', label: 'Tên yêu cầu', w: 270, icon: 'Aa' },
+  { k: 'description', label: 'Mô tả yêu cầu', w: 260, icon: '≡', private: true },
+  { k: 'briefLink', label: 'Link brief / reference', w: 170, icon: '🔗', private: true },
+  { k: 'outputSpec', label: 'Thông số đầu ra (Optional)', w: 200, icon: '≡', private: true },
+  { k: 'quantity', label: 'Số lượng', w: 90, icon: '#' },
+  { k: 'priority', label: 'Ưu tiên', w: 110, icon: '◉' },
+  { k: 'requester', label: 'Người request', w: 150, icon: '👤' },
+  { k: 'assignee', label: 'Assignee', w: 150, icon: '👥' },
+  { k: 'requestDate', label: 'Ngày request', w: 120, icon: '◷' },
+  { k: 'deadline', label: 'Deadline cần', w: 120, icon: '▦' },
+  { k: 'status', label: 'Trạng thái', w: 150, icon: '◉' },
+  { k: 'progress', label: 'Tiến độ', w: 110, icon: '◔' },
+  { k: 'deliveryLink', label: 'Link nghiệm thu', w: 170, icon: '🔗', private: true },
+  { k: 'notes', label: 'Ghi chú / feedback', w: 220, icon: '≡', private: true },
+  { k: 'sheetDeadlineWarning', label: 'Cảnh báo deadline', w: 150, icon: '⚠' },
+];
+const RT_CALCS = [['', 'Không tính'], ['count', 'Đếm tất cả'], ['filled', 'Đếm có giá trị'], ['empty', 'Đếm trống'], ['unique', 'Đếm giá trị khác nhau'], ['pctFilled', '% có giá trị']];
+// Mỗi tab có cấu hình cột riêng (giống view trong Notion). Tab "Done" mặc định gọn như Notion:
+// Dự án · Tên · Mô tả · Link brief · Ưu tiên · Deadline · Assignee · Trạng thái — mới nhất lên đầu.
+const RT_DONE_COLS = ['project', 'name', 'description', 'briefLink', 'priority', 'deadline', 'assignee', 'status'];
+const RT_DEFAULT = (tab) => {
+  const all = RT_COLS.map((c) => c.k);
+  const base = { tab, sortKey: '', sortDir: 'asc', hidden: [], wrap: [], mine: false, q: '', filters: {}, groupBy: '', calcs: { id: 'count' }, freeze: 'name', order: all };
+  if (tab === 'done') Object.assign(base, { order: RT_DONE_COLS.concat(all.filter((k) => !RT_DONE_COLS.includes(k))), hidden: all.filter((k) => !RT_DONE_COLS.includes(k)), calcs: { project: 'count' }, sortKey: 'deadline', sortDir: 'desc' });
+  return base;
+};
+const rtKey = () => 'va.req.table.v3.' + Rules.normEmail((S.user && S.user.email) || 'anon');
+let RT_ALL = null; let RT = null; let RT_FOR = '';
+function rtPrefs() {
+  if (!RT_ALL || RT_FOR !== rtKey()) { RT_FOR = rtKey(); RT_ALL = LS.get(rtKey(), null) || {}; RT_ALL.views = RT_ALL.views || {}; RT_ALL.tab = RT_ALL.tab || 'table'; }
+  const tab = RT_ALL.tab;
+  const v = Object.assign(RT_DEFAULT(tab), RT_ALL.views[tab] || {}, { tab });
+  const known = RT_COLS.map((c) => c.k);
+  // cột mới thêm sau này vẫn hiện; cột không còn tồn tại bị bỏ
+  v.order = (v.order || []).filter((k) => known.includes(k)).concat(known.filter((k) => !(v.order || []).includes(k)));
+  RT_ALL.views[tab] = v; RT = v;
+  return v;
+}
+function rtSave() { if (RT) { RT_ALL.tab = RT.tab; RT_ALL.views[RT.tab] = RT; } LS.set(rtKey(), RT_ALL); }
+const rtCol = (k) => RT_COLS.find((c) => c.k === k);
+const rtVisibleCols = () => rtPrefs().order.filter((k) => !rtPrefs().hidden.includes(k)).map(rtCol);
+const rtTags = (v) => String(v || '').split(/[,;|]/).map((x) => trim(x)).filter(Boolean);
+const rtIsClosed = (t) => ['done', 'cancelled'].includes(statusKey(t));
+
+// giá trị thô dùng cho lọc / nhóm / tính toán
+function rtVal(t, k) {
+  if (k === 'status') return statusLabelOf(t);
+  if (k === 'queue') { const q = colKey(t) === 'new' ? queueInfoOf(t) : null; return q ? '#' + q.position : ''; }
+  if (rtCol(k) && rtCol(k).private) return t._redacted ? '' : trim(t[k]);
+  if (k === 'sheetDeadlineWarning') return trim(t.sheetDeadlineWarning) || (trim(t.deadline) && Rules.isOpen(t) ? dlState(t).label : '');
+  return trim(t[k]);
+}
+// giá trị dùng để sắp xếp
+function rtSortVal(t, k) {
+  if (k === 'priority') return priorityIndex(t.priority);
+  if (k === 'status') { const i = (Rules.STATUS_KEYS || []).indexOf(colKey(t)); return i < 0 ? 99 : i; }
+  if (k === 'id') return idNum(t.id);
+  if (k === 'queue') { const q = colKey(t) === 'new' ? queueInfoOf(t) : null; return q ? q.position : 1e9; }
+  if (k === 'deadline' || k === 'requestDate') return trim(t[k]) || '9999';
+  return rtVal(t, k).toLowerCase();
+}
+const RT_TAG_TONES = 8;
+function rtTone(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % RT_TAG_TONES; }
+const rtTag = (v) => `<span class="rt-tag" data-tone="${rtTone(v)}">${esc(v)}</span>`;
+function rtDate(ymd) { const s = Rules.ymdToDmy(trim(ymd)); return s ? esc(s) : '<span class="dash">—</span>'; }
+
+function rtCell(t, k) {
+  const lock = '<span class="rt-lock" title="Chỉ người order của đơn này mới xem được">Ẩn</span>';
+  switch (k) {
+    case 'id': return idHtml(t);
+    case 'name': return `<span class="rt-name"><span class="rt-doc" aria-hidden="true">${t._redacted ? '🔒' : '▤'}</span><span class="rt-name-text">${esc(t.name || '(chưa đặt tên)')}</span>${savingHtml(t)}</span>${isOwnOrder(t) ? '<span class="rt-me">Của tôi</span>' : ''}`;
+    case 'project': case 'team': return trim(t[k]) ? rtTag(t[k]) : '<span class="dash">—</span>';
+    case 'assetType': { const tags = rtTags(t.assetType); return tags.length ? tags.map(rtTag).join('') : '<span class="dash">—</span>'; }
+    case 'requester': case 'assignee': return personHtml(t[k]);
+    case 'description': case 'outputSpec': case 'notes': return t._redacted ? lock : dash(trim(t[k]).split('\n')[0]);
+    case 'briefLink': case 'deliveryLink': return t._redacted ? lock : (linkChips(t[k]) || '<span class="dash">—</span>');
+    case 'progress': { const v = trim(t.progress); if (!v) return '<span class="dash">—</span>'; const n = parseFloat(v); const pct = /%$/.test(v) ? n : (n <= 1 ? n * 100 : n); return isFinite(pct) ? `<span class="rt-prog"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></span><span class="mono">${esc(v)}</span>` : esc(v); }
+    case 'sheetDeadlineWarning': { if (trim(t.sheetDeadlineWarning)) return `<span class="rt-tag" data-tone="1">${esc(t.sheetDeadlineWarning)}</span>`; return trim(t.deadline) && Rules.isOpen(t) ? deadlineBadge(t) : '<span class="dash">—</span>'; }
+    case 'priority': return trim(t.priority) ? `<span class="rt-prio" style="--pr:${priorityColor(t.priority)}">${esc(t.priority)}</span>` : '<span class="dash">—</span>';
+    case 'status': return statusPill(t);
+    case 'deadline': return rtDate(t.deadline);
+    case 'queue': { const q = colKey(t) === 'new' ? queueInfoOf(t) : null; return q ? `<span class="mono">#${esc(q.position)}/${esc(q.total)}</span>` : '<span class="dash">—</span>'; }
+    case 'requestDate': return rtDate(t.requestDate);
+    default: return dash(t[k]);
+  }
+}
+
+function rtRows() {
+  const p = rtPrefs();
+  let rows = S.tasks.filter((t) => !t._tmp || isOwnOrder(t));
+  rows = rows.filter((t) => (p.tab === 'done' ? rtIsClosed(t) : p.tab === 'table' ? !rtIsClosed(t) : true));
+  if (p.mine) rows = rows.filter(isOwnOrder);
+  const q = trim(p.q).toLowerCase();
+  if (q) rows = rows.filter((t) => ['id', 'name', 'project', 'assetType', 'team', 'requester', 'assignee', 'description', 'notes'].some((k) => rtVal(t, k).toLowerCase().includes(q)));
+  Object.keys(p.filters || {}).forEach((k) => {
+    const vals = p.filters[k] || []; if (!vals.length) return;
+    rows = rows.filter((t) => {
+      const v = k === 'assetType' ? rtTags(t.assetType) : [rtVal(t, k)];
+      return vals.some((x) => (x === '' ? !v.filter(Boolean).length : v.includes(x)));
+    });
+  });
+  const k = p.sortKey; const dir = p.sortDir === 'desc' ? -1 : 1;
+  rows.sort((a, b) => {
+    if (k) { const va = rtSortVal(a, k), vb = rtSortVal(b, k); if (va < vb) return -dir; if (va > vb) return dir; }
+    // mặc định: theo vị trí trong hàng rồi ID mới nhất
+    return (rtSortVal(a, 'queue') - rtSortVal(b, 'queue')) || (idNum(b.id) - idNum(a.id));
+  });
+  return rows;
+}
+function rtCalc(rows, k, kind) {
+  if (!kind) return '';
+  const vals = rows.map((t) => (k === 'assetType' ? rtTags(t.assetType).join(', ') : rtVal(t, k)));
+  const filled = vals.filter(Boolean).length;
+  if (kind === 'count') return 'Đếm ' + rows.length;
+  if (kind === 'filled') return 'Có ' + filled;
+  if (kind === 'empty') return 'Trống ' + (rows.length - filled);
+  if (kind === 'unique') return 'Khác nhau ' + new Set(vals.filter(Boolean)).size;
+  if (kind === 'pctFilled') return (rows.length ? Math.round((filled / rows.length) * 100) : 0) + '% có';
+  return '';
+}
+// vị trí "left" của các cột bị cố định (từ cột đầu tới cột p.freeze)
+function rtFrozenLefts(cols) {
+  const p = rtPrefs(); const out = {}; if (!p.freeze) return out;
+  const stop = cols.findIndex((c) => c.k === p.freeze); if (stop < 0) return out;
+  let left = 0;
+  for (let i = 0; i <= stop; i++) { out[cols[i].k] = left; left += cols[i].w; }
+  return out;
+}
+
+function rtRowHtml(t, cols, lefts) {
+  const own = !t._redacted;
+  const p = rtPrefs();
+  return `<tr class="rt-row ${own ? 'is-own' : 'is-locked'} ${S.pending.has(t.id) ? 'is-saving' : ''}" data-testid="rt-row-${esc(t.id)}" data-id="${esc(t.id)}" ${own && !t._tmp ? `data-open="${esc(t.id)}" role="button" tabindex="0"` : 'title="Đơn của người khác — chỉ xem dòng tóm tắt"'}>
+    ${cols.map((c) => `<td class="rt-cell ${p.wrap.includes(c.k) ? 'is-wrap' : ''} ${c.k in lefts ? 'is-frozen' : ''}" data-col="${c.k}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}">${rtCell(t, c.k)}</td>`).join('')}
+  </tr>`;
+}
+function rtBodyHtml(rows, cols) {
+  const p = rtPrefs(); const lefts = rtFrozenLefts(cols);
+  const span = cols.length;
+  if (!rows.length) return `<tr><td colspan="${span}" class="rt-empty" data-testid="empty-state">${p.q || p.mine || Object.values(p.filters || {}).some((v) => v.length) ? 'Không có đơn nào khớp bộ lọc.' : p.tab === 'done' ? 'Chưa có đơn nào xong.' : 'Chưa có đơn nào đang mở.'}</td></tr>`;
+  if (!p.groupBy) return rows.map((t) => rtRowHtml(t, cols, lefts)).join('');
+  const groups = new Map();
+  rows.forEach((t) => {
+    const keys = p.groupBy === 'assetType' ? (rtTags(t.assetType).length ? rtTags(t.assetType) : ['']) : [rtVal(t, p.groupBy)];
+    keys.forEach((g) => { if (!groups.has(g)) groups.set(g, []); groups.get(g).push(t); });
+  });
+  const gl = rtCol(p.groupBy).label;
+  return Array.from(groups.entries()).sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : a[0].localeCompare(b[0], 'vi'))).map(([g, list]) => {
+    const closed = !!S.groupCollapsed['rt:' + p.groupBy + ':' + g];
+    return `<tr class="rt-group"><td colspan="${span}"><button type="button" class="rt-group-btn" data-rt-group="${esc(g)}" aria-expanded="${!closed}">${ICONS.chevDown}<span>${esc(gl)}: <b>${g ? esc(g) : 'Trống'}</b></span><span class="count-pill">${list.length}</span></button></td></tr>
+      ${closed ? '' : list.map((t) => rtRowHtml(t, cols, lefts)).join('')}`;
+  }).join('');
+}
+function rtFootHtml(rows, cols) {
+  const p = rtPrefs(); const lefts = rtFrozenLefts(cols);
+  return `<tr>${cols.map((c) => `<td class="rt-calc ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-calc-btn" data-rt-calc="${c.k}" title="Tính toán">${esc(rtCalc(rows, c.k, (p.calcs || {})[c.k])) || '<span class="rt-calc-hint">Tính toán</span>'}</button></td>`).join('')}</tr>`;
+}
+function rtRefreshBody() {
+  const root = $('#rt-root'); if (!root) return;
+  const cols = rtVisibleCols(); const rows = rtRows();
+  root.querySelector('tbody').innerHTML = rtBodyHtml(rows, cols);
+  root.querySelector('tfoot').innerHTML = rtFootHtml(rows, cols);
+  const p = rtPrefs();
+  const nf = Object.values(p.filters || {}).filter((v) => v.length).length + (p.mine ? 1 : 0);
+  const fb = root.querySelector('[data-rt-act="filters"]'); if (fb) fb.querySelector('.rt-badge').textContent = nf ? String(nf) : '';
+  const cnt = root.querySelector('.rt-count'); if (cnt) cnt.textContent = rows.length + ' đơn';
+}
+
+function renderMine(view) {
+  const p = rtPrefs();
+  if (!S.loaded) { view.innerHTML = S.loadError ? `<div class="view-head"><div><h1 class="view-title">Bảng đơn</h1></div></div>${errorHtml(S.loadError)}` : loadingHtml('Bảng đơn'); return; }
+  const review = S.tasks.filter((t) => isOwnOrder(t) && statusKey(t) === 'review').sort((a, b) => trim(a.reviewDate).localeCompare(trim(b.reviewDate)));
+  const tabs = [['table', 'Đang xử lý', ICONS.table || '▦'], ['done', 'Done', ICONS.table || '▦'], ['gallery', 'Gallery', '▤']];
+  const head = `<div class="rt-head">
+      <h1 class="rt-title"><img class="rt-badge-img" src="${ASSETS.teamBadge}" alt="" aria-hidden="true">Request VA</h1>
+      ${review.length ? `<section class="rt-review" data-testid="mine-review" aria-label="Cần bạn duyệt"><div class="rt-review-head"><b>Cần bạn duyệt</b> <span class="count-pill">${review.length}</span><span class="muted">Xem kết quả và bấm Đạt / Chưa đạt. Không phản hồi thì đơn tự duyệt sau 3 ngày làm việc.</span></div><div class="ogrid">${review.map(orderCardHtml).join('')}</div></section>` : ''}
+      <div class="rt-bar">
+        <div class="rt-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="rt-tab" data-rt-tab="${k}" data-testid="rt-tab-${k}" aria-selected="${p.tab === k}">${l}</button>`).join('')}</div>
+        <span class="rt-spacer"></span>
+        ${p.tab !== 'gallery' ? `<span class="rt-count muted"></span>
+        <button type="button" class="rt-chip" data-rt-act="mine" aria-pressed="${p.mine}" data-testid="rt-mine">Đơn của tôi</button>
+        <button type="button" class="rt-icon-btn" data-rt-act="filters" title="Lọc">${ICONS.filter || '⏷'}<span class="rt-badge"></span></button>
+        <button type="button" class="rt-icon-btn" data-rt-act="sort" title="Sắp xếp">⇅</button>
+        <button type="button" class="rt-icon-btn" data-rt-act="props" title="Hiện / ẩn cột">⚙</button>
+        <label class="rt-search"><span aria-hidden="true">⌕</span><input type="search" id="rt-q" placeholder="Tìm đơn…" value="${esc(p.q)}" aria-label="Tìm đơn"></label>` : ''}
+        <a class="btn btn-brand btn-sm" href="#/new" data-testid="mine-new">New</a>
+      </div></div>`;
+  if (p.tab === 'gallery') {
+    view.innerHTML = `<div id="rt-root">${head}<div class="rt-gallery" id="rt-gallery"></div></div>`;
+    renderMineGallery($('#rt-gallery'));
+  } else {
+    const cols = rtVisibleCols(); const lefts = rtFrozenLefts(cols);
+    const width = cols.reduce((s, c) => s + c.w, 0);
+    view.innerHTML = `<div id="rt-root">${head}
+      <div class="rt-scroll"><table class="rt-table" style="width:${width}px">
+        <colgroup>${cols.map((c) => `<col style="width:${c.w}px">`).join('')}</colgroup>
+        <thead><tr>${cols.map((c) => `<th scope="col" class="rt-th ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-th-btn" data-rt-col="${c.k}" aria-haspopup="menu"><span class="rt-th-ico" aria-hidden="true">${c.icon}</span><span class="rt-th-text">${esc(c.label)}</span>${p.sortKey === c.k ? `<span class="rt-sort">${p.sortDir === 'asc' ? '↑' : '↓'}</span>` : ''}${(p.filters[c.k] || []).length ? '<span class="rt-dot" title="Đang lọc"></span>' : ''}</button></th>`).join('')}</tr></thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+      <a class="rt-newrow" href="#/new">＋ Đơn mới</a></div></div>`;
+    rtRefreshBody();
+  }
+  const root = $('#rt-root');
+  root.addEventListener('click', rtOnClick);
+  const qi = $('#rt-q'); if (qi) qi.addEventListener('input', () => { RT.q = qi.value; rtSave(); rtRefreshBody(); });
+}
+
+function rtSetAndRender(mut, bodyOnly) {
+  mut(rtPrefs()); rtSave();
+  if (bodyOnly) rtRefreshBody(); else renderView({ force: true });
+}
+function rtFilterValues(k) {
+  const set = new Set(); let hasEmpty = false;
+  S.tasks.forEach((t) => {
+    const vals = k === 'assetType' ? rtTags(t.assetType) : [rtVal(t, k)];
+    if (!vals.filter(Boolean).length) hasEmpty = true;
+    vals.filter(Boolean).forEach((v) => set.add(v));
+  });
+  const arr = Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  if (hasEmpty) arr.push('');
+  return arr;
+}
+function rtFilterItems(k, back) {
+  const cur = rtPrefs().filters[k] || [];
+  const items = [{ label: 'Lọc: ' + rtCol(k).label }];
+  if (back) items.push({ text: '← Quay lại', submenu: back, noFocusBack: true });
+  rtFilterValues(k).slice(0, 40).forEach((v) => {
+    const on = cur.includes(v);
+    items.push({ html: `<span class="rt-check">${on ? '✓' : ''}</span>${v ? esc(v) : '<i>Trống</i>'}`, fn: () => rtSetAndRender((p) => { const a = p.filters[k] || []; p.filters[k] = on ? a.filter((x) => x !== v) : a.concat([v]); }) });
+  });
+  if (cur.length) items.push({ sep: true }, { text: 'Bỏ lọc cột này', fn: () => rtSetAndRender((p) => { delete p.filters[k]; }) });
+  return items;
+}
+function rtColMenu(anchor, k) {
+  const p = rtPrefs(); const c = rtCol(k);
+  const order = p.order; const i = order.indexOf(k);
+  const main = () => [
+    { label: c.label },
+    { text: '↑ Sắp xếp tăng dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'asc'; }) },
+    { text: '↓ Sắp xếp giảm dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'desc'; }) },
+    ...(p.sortKey === k ? [{ text: 'Bỏ sắp xếp', fn: () => rtSetAndRender((q) => { q.sortKey = ''; }) }] : []),
+    { sep: true },
+    { text: 'Lọc…', submenu: () => rtFilterItems(k, main), noFocusBack: true },
+    { text: p.groupBy === k ? 'Bỏ nhóm' : 'Nhóm theo cột này', fn: () => rtSetAndRender((q) => { q.groupBy = q.groupBy === k ? '' : k; }) },
+    { text: 'Tính toán…', submenu: () => rtCalcItems(k, main), noFocusBack: true },
+    { sep: true },
+    { text: p.freeze === k ? 'Bỏ cố định' : 'Cố định đến cột này', fn: () => rtSetAndRender((q) => { q.freeze = q.freeze === k ? '' : k; }) },
+    { text: 'Ẩn cột', disabled: k === 'name', fn: () => rtSetAndRender((q) => { q.hidden = q.hidden.concat([k]); if (q.freeze === k) q.freeze = ''; }) },
+    { text: (p.wrap.includes(k) ? '✓ ' : '') + 'Xuống dòng', fn: () => rtSetAndRender((q) => { q.wrap = q.wrap.includes(k) ? q.wrap.filter((x) => x !== k) : q.wrap.concat([k]); }) },
+    { sep: true },
+    { text: '← Chuyển sang trái', disabled: i <= 0, fn: () => rtSetAndRender((q) => { const o = q.order; [o[i - 1], o[i]] = [o[i], o[i - 1]]; }) },
+    { text: 'Chuyển sang phải →', disabled: i >= order.length - 1, fn: () => rtSetAndRender((q) => { const o = q.order; [o[i + 1], o[i]] = [o[i], o[i + 1]]; }) },
+  ];
+  openMenu(anchor, main);
+}
+function rtCalcItems(k, back) {
+  const cur = (rtPrefs().calcs || {})[k] || '';
+  const items = [{ label: 'Tính toán: ' + rtCol(k).label }];
+  if (back) items.push({ text: '← Quay lại', submenu: back, noFocusBack: true });
+  RT_CALCS.forEach(([v, l]) => items.push({ html: `<span class="rt-check">${cur === v ? '✓' : ''}</span>${esc(l)}`, fn: () => rtSetAndRender((p) => { p.calcs = p.calcs || {}; if (v) p.calcs[k] = v; else delete p.calcs[k]; }, true) }));
+  return items;
+}
+function rtPropsMenu(anchor) {
+  const p = rtPrefs();
+  openMenu(anchor, () => [{ label: 'Cột hiển thị' }, ...p.order.map((k) => {
+    const on = !p.hidden.includes(k);
+    return { html: `<span class="rt-check">${on ? '✓' : ''}</span>${esc(rtCol(k).label)}`, disabled: k === 'name', fn: () => rtSetAndRender((q) => { q.hidden = on ? q.hidden.concat([k]) : q.hidden.filter((x) => x !== k); }) };
+  }), { sep: true }, { text: 'Khôi phục mặc định', fn: () => rtSetAndRender((q) => { const d2 = RT_DEFAULT(q.tab); Object.keys(q).forEach((x) => delete q[x]); Object.assign(q, d2); }) }]);
+}
+function rtFiltersMenu(anchor) {
+  const p = rtPrefs();
+  openMenu(anchor, function main() {
+    return [{ label: 'Lọc theo cột' }, ...['team', 'project', 'assetType', 'priority', 'requester', 'assignee', 'status', 'sheetDeadlineWarning'].map((k) => ({ text: rtCol(k).label + ((p.filters[k] || []).length ? ` (${p.filters[k].length})` : ''), submenu: () => rtFilterItems(k, main), noFocusBack: true })),
+      { sep: true }, { text: 'Xoá mọi bộ lọc', disabled: !Object.values(p.filters).some((v) => v.length) && !p.mine && !p.q, fn: () => rtSetAndRender((q) => { q.filters = {}; q.mine = false; q.q = ''; }) }];
+  });
+}
+function rtSortMenu(anchor) {
+  const p = rtPrefs();
+  openMenu(anchor, () => [{ label: 'Sắp xếp theo' }, { html: `<span class="rt-check">${!p.sortKey ? '✓' : ''}</span>Mặc định (vị trí hàng)`, fn: () => rtSetAndRender((q) => { q.sortKey = ''; }) },
+    ...rtVisibleCols().filter((c) => !c.private).map((c) => ({ html: `<span class="rt-check">${p.sortKey === c.k ? (p.sortDir === 'asc' ? '↑' : '↓') : ''}</span>${esc(c.label)}`, fn: () => rtSetAndRender((q) => { if (q.sortKey === c.k) q.sortDir = q.sortDir === 'asc' ? 'desc' : 'asc'; else { q.sortKey = c.k; q.sortDir = 'asc'; } }) }))]);
+}
+function rtOnClick(e) {
+  const t = e.target;
+  const tab = t.closest('[data-rt-tab]'); if (tab) { rtPrefs(); rtSave(); RT_ALL.tab = tab.dataset.rtTab; LS.set(rtKey(), RT_ALL); renderView({ force: true }); return; }
+  const col = t.closest('[data-rt-col]'); if (col) { e.stopPropagation(); rtColMenu(col, col.dataset.rtCol); return; }
+  const calc = t.closest('[data-rt-calc]'); if (calc) { e.stopPropagation(); openMenu(calc, () => rtCalcItems(calc.dataset.rtCalc)); return; }
+  const g = t.closest('[data-rt-group]'); if (g) { e.stopPropagation(); const key = 'rt:' + rtPrefs().groupBy + ':' + g.dataset.rtGroup; S.groupCollapsed[key] = !S.groupCollapsed[key]; rtRefreshBody(); return; }
+  const act = t.closest('[data-rt-act]');
+  if (act) {
+    e.stopPropagation();
+    const a = act.dataset.rtAct;
+    if (a === 'mine') { rtSetAndRender((p) => { p.mine = !p.mine; }, true); act.setAttribute('aria-pressed', String(rtPrefs().mine)); }
+    else if (a === 'filters') rtFiltersMenu(act);
+    else if (a === 'sort') rtSortMenu(act);
+    else if (a === 'props') rtPropsMenu(act);
+    return;
+  }
+  const locked = t.closest('.rt-row.is-locked'); if (locked && !t.closest('a')) { e.stopPropagation(); toast('Đơn của người khác — chỉ xem được dòng tóm tắt'); }
 }
 
 // ============================================================================
@@ -7961,7 +8362,7 @@ const NAV_ICONS = {
 function navItems() {
   return isVA()
     ? [['queue', 'Hàng đợi'], ['board', 'Kanban'], ['list', 'Danh sách'], ['overview', 'Tổng quan'], ['ai', 'Trợ lý AI'], ['settings', 'Cài đặt']]
-    : [['mine', 'Đơn của tôi'], ['new', 'Tạo đơn'], ['settings', 'Cài đặt']];
+    : [['mine', 'Bảng đơn'], ['new', 'Tạo đơn'], ['settings', 'Cài đặt']];
 }
 function renderNav() {
   const nav = $('#sidenav');
@@ -8013,7 +8414,7 @@ const VA_VIEWS = ['queue', 'board', 'list', 'overview', 'ai', 'settings', 'mine'
 const REQ_VIEWS = ['mine', 'new', 'settings'];
 const App = {
   bgHash: '', cameFromApp: false, mounted: null, returnHash: '',
-  openTask(id) { App.cameFromApp = true; location.hash = '#/task/' + encodeURIComponent(id); },
+  openTask(id) { const ot = getTask(id); if (ot && ot._redacted) { toast('Đơn của người khác — chỉ xem được dòng tóm tắt trong bảng'); return; } App.cameFromApp = true; location.hash = '#/task/' + encodeURIComponent(id); },
   openNew() { if (!S.online) { guardOnline(); return; } location.hash = '#/new'; },
   closeOverlayNav() {
     if (App.cameFromApp && history.length > 1) { App.cameFromApp = false; history.back(); }
@@ -8096,8 +8497,10 @@ async function route() {
   if (!S.user) return;
   const r = parseHash();
   if (r.view === 'task' && r.parts[1]) {
+    const rid = decodeURIComponent(r.parts[1]); const rt = getTask(rid);
+    if (rt && rt._redacted) { history.replaceState(null, '', App.bgHash || defaultHash()); toast('Đơn của người khác — chỉ xem được dòng tóm tắt trong bảng'); route(); return; }
     ensureBackground();
-    Drawer.open(decodeURIComponent(r.parts[1]));
+    Drawer.open(rid);
     return;
   }
   if (Drawer.isOpen() && Drawer.isDirty() && !Drawer.deleted) {

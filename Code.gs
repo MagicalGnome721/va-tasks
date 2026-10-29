@@ -435,7 +435,17 @@ var Rules = (function () {
   function visibleTasks(user, tasks) {
     if (!user) return [];
     if (isVa(user) || isSystem(user)) return (tasks || []).slice();
-    return (tasks || []).filter(function (t) { return isOwnTask(user, t); });
+    // Người order thấy TOÀN BỘ hàng đợi, nhưng đơn của người khác chỉ còn dòng tóm tắt
+    // (server cắt trường chi tiết trước khi trả về — xem PUBLIC_TASK_KEYS).
+    return (tasks || []).map(function (t) { return isOwnTask(user, t) ? t : publicTask(t); });
+  }
+  // Trường được lộ ra trên đơn của người khác (bảng chung). Mọi trường khác bị cắt.
+  var PUBLIC_TASK_KEYS = ['id', 'name', 'project', 'assetType', 'team', 'requester', 'priority', 'status', 'assignee',
+    'deadline', 'requestDate', 'quantity', 'progress', 'sheetDeadlineWarning', 'size', 'parentId', 'queuePosition', 'queueTotal', 'childCount', 'childTotal', 'childDone', 'onHold', 'effectivePriority'];
+  function publicTask(t) {
+    var o = { _redacted: true };
+    PUBLIC_TASK_KEYS.forEach(function (k) { if (t && has(t, k)) o[k] = t[k]; });
+    return o;
   }
   function sanitizeConfigFor(user, config) {
     var c = clone(config) || {};
@@ -1492,7 +1502,7 @@ var Rules = (function () {
     roleOf: roleOf, systemUser: systemUser, vaNamesOf: vaNamesOf, isOwnTask: isOwnTask,
     can: can, allowedTransitions: allowedTransitions, transitionNeeds: transitionNeeds,
     visibleTasks: visibleTasks, sanitizeConfigFor: sanitizeConfigFor,
-    effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
+    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
