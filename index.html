@@ -285,6 +285,7 @@ p { margin: 0; }
 main { grid-area: main; min-width: 0; padding: 28px 32px 56px; }
 main:focus, main:focus-visible { outline: none; }
 #view { max-width: 1240px; }
+body[data-view="mine"] #view { max-width: none; }
 .view-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .view-title { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.25; }
 .view-sub { color: var(--muted); margin-top: 4px; max-width: 72ch; }
@@ -1403,7 +1404,14 @@ body.has-drawer .buddy[data-open="false"] { display: none; }
 .rt-badge:not(:empty) { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font-size: 10px; line-height: 15px; text-align: center; padding: 0 3px; }
 .rt-search { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surface); color: var(--muted); }
 .rt-search input { border: 0; outline: 0; background: none; font: inherit; font-size: 13px; width: 140px; padding: 6px 0; color: var(--ink); }
-.rt-scroll { overflow: auto; max-height: calc(100vh - 230px); margin-top: 2px; }
+.rt-scroll { overflow: auto; max-height: calc(100vh - 230px); margin-top: 2px; border-bottom: 1px solid var(--line); }
+.rt-fill { border-right: 0 !important; }
+.rt-add-col { justify-content: center; font-size: 16px; color: var(--muted); }
+.rt-th { position: sticky; }
+.rt-resize { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; }
+.rt-resize::after { content: ''; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 2px; border-radius: 1px; background: transparent; }
+.rt-th:hover .rt-resize::after, body.rt-resizing .rt-resize::after { background: var(--brand); }
+body.rt-resizing, body.rt-resizing * { cursor: col-resize !important; user-select: none !important; }
 .rt-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 14px; }
 .rt-th { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-align: left; font-weight: 500; }
 .rt-th.is-frozen { z-index: 4; }
@@ -6021,7 +6029,7 @@ function rtMergeOrder(mine, team) {
 }
 const RT_DEFAULT = (tab) => {
   const all = rtTeamOrder();
-  const base = { tab, sortKey: '', sortDir: 'asc', hidden: [], wrap: [], mine: false, q: '', filters: {}, groupBy: '', calcs: { id: 'count' }, freeze: 'name', order: all };
+  const base = { tab, widths: {}, sortKey: '', sortDir: 'asc', hidden: [], wrap: [], mine: false, q: '', filters: {}, groupBy: '', calcs: { id: 'count' }, freeze: 'name', order: all };
   if (tab === 'done') Object.assign(base, { order: RT_DONE_COLS.concat(all.filter((k) => !RT_DONE_COLS.includes(k))), hidden: all.filter((k) => !RT_DONE_COLS.includes(k)), calcs: { project: 'count' }, sortKey: 'deadline', sortDir: 'desc' });
   return base;
 };
@@ -6038,7 +6046,10 @@ function rtPrefs() {
 }
 function rtSave() { if (RT) { RT_ALL.tab = RT.tab; RT_ALL.views[RT.tab] = RT; } LS.set(rtKey(), RT_ALL); }
 const rtCol = (k) => rtAllCols().find((c) => c.k === k) || RT_BASE_COLS.find((c) => c.k === k) || { k, label: k, w: 150, icon: '≡' };
-const rtVisibleCols = () => { const all = rtAllCols(); return rtPrefs().order.filter((k) => !rtPrefs().hidden.includes(k)).map((k) => all.find((c) => c.k === k)).filter(Boolean); };
+const RT_MIN_W = 60, RT_MAX_W = 900;
+// độ rộng cột: người dùng kéo mép tiêu đề cột → lưu riêng cho từng người, từng tab (localStorage)
+const rtW = (c) => { const w = Number((rtPrefs().widths || {})[c.k]); return w >= RT_MIN_W ? Math.min(w, RT_MAX_W) : c.w; };
+const rtVisibleCols = () => { const all = rtAllCols(); return rtPrefs().order.filter((k) => !rtPrefs().hidden.includes(k)).map((k) => all.find((c) => c.k === k)).filter(Boolean).map((c) => Object.assign({}, c, { w: rtW(c) })); };
 const rtIsMulti = (k) => ['multi_select', 'person'].includes(rtCol(k).type);
 const rtValues = (t, k) => (rtIsMulti(k) ? rtTags(rtVal(t, k)) : [rtVal(t, k)]);
 const rtTags = (v) => String(v || '').split(/[,;|]/).map((x) => trim(x)).filter(Boolean);
@@ -6150,12 +6161,12 @@ function rtRowHtml(t, cols, lefts) {
   const own = !t._redacted;
   const p = rtPrefs();
   return `<tr class="rt-row ${own ? 'is-own' : 'is-locked'} ${S.pending.has(t.id) ? 'is-saving' : ''}" data-testid="rt-row-${esc(t.id)}" data-id="${esc(t.id)}" ${own && !t._tmp ? `data-open="${esc(t.id)}" role="button" tabindex="0"` : 'title="Đơn của người khác — chỉ xem dòng tóm tắt"'}>
-    ${cols.map((c) => `<td class="rt-cell ${p.wrap.includes(c.k) ? 'is-wrap' : ''} ${c.k in lefts ? 'is-frozen' : ''}" data-col="${c.k}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}">${rtCell(t, c.k)}</td>`).join('')}
+    ${cols.map((c) => `<td class="rt-cell ${p.wrap.includes(c.k) ? 'is-wrap' : ''} ${c.k in lefts ? 'is-frozen' : ''}" data-col="${c.k}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}">${rtCell(t, c.k)}</td>`).join('')}<td class="rt-cell rt-fill"></td>
   </tr>`;
 }
 function rtBodyHtml(rows, cols) {
   const p = rtPrefs(); const lefts = rtFrozenLefts(cols);
-  const span = cols.length;
+  const span = cols.length + 1;
   if (!rows.length) return `<tr><td colspan="${span}" class="rt-empty" data-testid="empty-state">${p.q || p.mine || Object.values(p.filters || {}).some((v) => v.length) ? 'Không có đơn nào khớp bộ lọc.' : p.tab === 'done' ? 'Chưa có đơn nào xong.' : 'Chưa có đơn nào đang mở.'}</td></tr>`;
   if (!p.groupBy) return rows.map((t) => rtRowHtml(t, cols, lefts)).join('');
   const groups = new Map();
@@ -6172,7 +6183,7 @@ function rtBodyHtml(rows, cols) {
 }
 function rtFootHtml(rows, cols) {
   const p = rtPrefs(); const lefts = rtFrozenLefts(cols);
-  return `<tr>${cols.map((c) => `<td class="rt-calc ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-calc-btn" data-rt-calc="${c.k}" title="Tính toán">${esc(rtCalc(rows, c.k, (p.calcs || {})[c.k])) || '<span class="rt-calc-hint">Tính toán</span>'}</button></td>`).join('')}</tr>`;
+  return `<tr>${cols.map((c) => `<td class="rt-calc ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-calc-btn" data-rt-calc="${c.k}" title="Tính toán">${esc(rtCalc(rows, c.k, (p.calcs || {})[c.k])) || '<span class="rt-calc-hint">Tính toán</span>'}</button></td>`).join('')}<td class="rt-calc rt-fill"></td></tr>`;
 }
 function rtRefreshBody() {
   const root = $('#rt-root'); if (!root) return;
@@ -6211,15 +6222,22 @@ function renderMine(view) {
     const cols = rtVisibleCols(); const lefts = rtFrozenLefts(cols);
     const width = cols.reduce((s, c) => s + c.w, 0);
     view.innerHTML = `<div id="rt-root">${head}
-      <div class="rt-scroll"><table class="rt-table" style="width:${width}px">
-        <colgroup>${cols.map((c) => `<col style="width:${c.w}px">`).join('')}</colgroup>
-        <thead><tr>${cols.map((c) => `<th scope="col" class="rt-th ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-th-btn" data-rt-col="${c.k}" aria-haspopup="menu"><span class="rt-th-ico" aria-hidden="true">${c.icon}</span><span class="rt-th-text">${esc(c.label)}</span>${p.sortKey === c.k ? `<span class="rt-sort">${p.sortDir === 'asc' ? '↑' : '↓'}</span>` : ''}${(p.filters[c.k] || []).length ? '<span class="rt-dot" title="Đang lọc"></span>' : ''}</button></th>`).join('')}</tr></thead>
+      <div class="rt-scroll"><table class="rt-table" style="width:max(100%, ${width + 48}px)">
+        <colgroup>${cols.map((c) => `<col data-col="${c.k}" style="width:${c.w}px">`).join('')}<col class="rt-fill-col"></colgroup>
+        <thead><tr>${cols.map((c) => `<th scope="col" class="rt-th ${c.k in lefts ? 'is-frozen' : ''}" style="${c.k in lefts ? `left:${lefts[c.k]}px;` : ''}"><button type="button" class="rt-th-btn" data-rt-col="${c.k}" aria-haspopup="menu"><span class="rt-th-ico" aria-hidden="true">${c.icon}</span><span class="rt-th-text">${esc(c.label)}</span>${p.sortKey === c.k ? `<span class="rt-sort">${p.sortDir === 'asc' ? '↑' : '↓'}</span>` : ''}${(p.filters[c.k] || []).length ? '<span class="rt-dot" title="Đang lọc"></span>' : ''}</button><span class="rt-resize" data-rt-resize="${c.k}" title="Kéo để đổi độ rộng · bấm đúp để về mặc định" aria-hidden="true"></span></th>`).join('')}<th class="rt-th rt-fill" scope="col">${rtCanEditProps() ? '<button type="button" class="rt-th-btn rt-add-col" data-rt-act="addcol" title="Thêm cột">＋</button>' : ''}</th></tr></thead>
         <tbody></tbody><tfoot></tfoot>
       </table>
       <a class="rt-newrow" href="#/new">＋ Đơn mới</a></div></div>`;
     rtRefreshBody();
   }
   // 1 listener ở pha capture của document: chạy trước handler chung của view (mở chi tiết đơn)
+  rtFitHeight();
+  if (!window.__rtResizeBound) {
+    window.__rtResizeBound = true;
+    window.addEventListener('resize', rtFitHeight);
+    document.addEventListener('pointerdown', rtResizeStart, true);
+    document.addEventListener('dblclick', (e) => { const h = e.target.closest && e.target.closest('[data-rt-resize]'); if (h) { e.preventDefault(); rtSetAndRender((q) => { q.widths = Object.assign({}, q.widths); delete q.widths[h.dataset.rtResize]; }); } }, true);
+  }
   if (!window.__rtBound) { window.__rtBound = true; document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#rt-root') && !e.target.closest('.menu, .modal-wrap')) rtOnClick(e); }, true); }
   const qi = $('#rt-q'); if (qi) qi.addEventListener('input', () => { RT.q = qi.value; rtSave(); rtRefreshBody(); });
 }
@@ -6442,6 +6460,8 @@ function rtSortMenu(anchor) {
 }
 function rtOnClick(e) {
   const t = e.target;
+  if (RT_DRAG.justEnded && Date.now() - RT_DRAG.justEnded < 250) { e.stopPropagation(); e.preventDefault(); return; }
+  if (t.closest('[data-rt-resize]')) { e.stopPropagation(); return; }
   const tab = t.closest('[data-rt-tab]'); if (tab) { rtPrefs(); rtSave(); RT_ALL.tab = tab.dataset.rtTab; LS.set(rtKey(), RT_ALL); renderView({ force: true }); return; }
   const col = t.closest('[data-rt-col]'); if (col) { e.stopPropagation(); rtColMenu(col, col.dataset.rtCol); return; }
   const calc = t.closest('[data-rt-calc]'); if (calc) { e.stopPropagation(); openMenu(calc, () => rtCalcItems(calc.dataset.rtCalc)); return; }
@@ -6454,6 +6474,7 @@ function rtOnClick(e) {
     else if (a === 'filters') rtFiltersMenu(act);
     else if (a === 'sort') rtSortMenu(act);
     else if (a === 'props') rtPropsMenu(act);
+    else if (a === 'addcol') { const o = rtPrefs().order; rtInsert(o[o.length - 1], 1); }
     return;
   }
   const cell = t.closest('.rt-cell[data-col]');
@@ -6485,6 +6506,38 @@ async function rtEditCell(t, k) {
   const nv = Rules.normPropValue(rtProps(), k, v.v).v;
   if (nv === cur) return;
   runUpdate(t.id, { [k]: nv }, { [k]: cur });
+}
+
+// ----- khung bảng cao vừa tới đáy cửa sổ (không bị cắt, không thừa) -----
+function rtFitHeight() {
+  const sc = document.querySelector('#rt-root .rt-scroll'); if (!sc) return;
+  if (window.innerWidth <= 720) { sc.style.maxHeight = ''; return; }
+  const top = sc.getBoundingClientRect().top + window.scrollY;
+  sc.style.maxHeight = Math.max(260, window.innerHeight - (top - window.scrollY) - 16) + 'px';
+}
+// ----- kéo mép tiêu đề để đổi độ rộng cột -----
+const RT_DRAG = { k: '', x0: 0, w0: 0, w: 0, justEnded: 0 };
+function rtResizeStart(e) {
+  const h = e.target.closest && e.target.closest('[data-rt-resize]'); if (!h || e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const k = h.dataset.rtResize; const col = document.querySelector(`#rt-root col[data-col="${CSS.escape(k)}"]`); if (!col) return;
+  Object.assign(RT_DRAG, { k, x0: e.clientX, w0: col.getBoundingClientRect().width || parseFloat(col.style.width) || 150 });
+  RT_DRAG.w = RT_DRAG.w0;
+  document.body.classList.add('rt-resizing');
+  const move = (ev) => {
+    RT_DRAG.w = Math.round(Math.max(RT_MIN_W, Math.min(RT_MAX_W, RT_DRAG.w0 + ev.clientX - RT_DRAG.x0)));
+    col.style.width = RT_DRAG.w + 'px';
+    const tb = document.querySelector('#rt-root .rt-table');
+    const sum = Array.from(document.querySelectorAll('#rt-root col[data-col]')).reduce((a, c) => a + (parseFloat(c.style.width) || 0), 0);
+    if (tb) tb.style.width = `max(100%, ${sum + 48}px)`;
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
+    document.body.classList.remove('rt-resizing');
+    RT_DRAG.justEnded = Date.now();
+    if (RT_DRAG.w !== RT_DRAG.w0) rtSetAndRender((q) => { q.widths = Object.assign({}, q.widths, { [k]: RT_DRAG.w }); });
+  };
+  document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true);
 }
 
 // ============================================================================
