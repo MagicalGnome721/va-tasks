@@ -4,7 +4,7 @@
 var PENDING_MAIL_ = [];
 var LOCK_DEPTH_ = 0;
 var SESSION_ACTIONS_ = ['me', 'logout', 'list', 'getConfig', 'log', 'create', 'update', 'delete', 'addComment',
-  'saveConfig', 'split', 'aiIntake', 'aiAssist', 'adminGet', 'adminSave', 'adminTestAi'];
+  'saveConfig', 'split', 'aiIntake', 'aiAssist', 'buddyChat', 'adminGet', 'adminSave', 'adminTestAi'];
 
 function doGet(e) {
   return respond_(function () {
@@ -47,6 +47,7 @@ function doPost(e) {
       case 'split': return { data: actionSplit_(body, user, cfg) };
       case 'aiIntake': return { data: actionAiIntake_(body, user, cfg) };
       case 'aiAssist': return { data: actionAiAssist_(body, user, cfg) };
+      case 'buddyChat': return { data: actionBuddyChat_(body, user) };
       case 'adminGet': return { data: actionAdminGet_(user) };
       case 'adminSave': return { data: actionAdminSave_(body, user) };
       case 'adminTestAi': return { data: actionAdminTestAi_(user) };
@@ -372,10 +373,10 @@ function assistQuotaTake_(email) {
     return true;
   });
 }
-function deepseekJson_(key, messages, maxTokens) {
+function deepseekJson_(key, messages, maxTokens, temperature) {
   var resp = UrlFetchApp.fetch(DEEPSEEK_URL, {
     method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + key },
-    payload: JSON.stringify({ model: 'deepseek-chat', temperature: 0.3, max_tokens: maxTokens || 1800,
+    payload: JSON.stringify({ model: 'deepseek-chat', temperature: temperature == null ? 0.3 : temperature, max_tokens: maxTokens || 1800,
       response_format: { type: 'json_object' }, messages: messages }),
     muteHttpExceptions: true
   });
@@ -415,6 +416,25 @@ function actionAiAssist_(body, user, cfg) {
   var sh = getDataSheet_();
   var tasks = readAll_(sh, headerMap_(sh)).tasks;
   return runAssist_(mode, q, tasks, cfg, null);  // chỉ VA trong danh sách thành viên mới được AI phân việc
+}
+
+/** Cún chat: hội thoại ngắn kiểu GenZ, trả {text, mood}. Dùng chung hạn mức lượt AI/ngày. */
+function actionBuddyChat_(body, user) {
+  var p = Rules.can(user, 'buddyChat');
+  if (!p.ok) throw forbidden_(p.reason);
+  var hist = Array.isArray(body.history) ? body.history : [];
+  var last = hist.length ? Rules.trim(hist[hist.length - 1] && hist[hist.length - 1].text) : '';
+  if (last.length < 1) throw Rules.err('VALIDATION', 'Dữ liệu không hợp lệ: Hãy nhập tin nhắn', { fields: { text: 'Hãy nhập tin nhắn' } });
+  if (last.length > Rules.BUDDY_MAX_TEXT) throw Rules.err('VALIDATION', 'Dữ liệu không hợp lệ: Tối đa ' + Rules.BUDDY_MAX_TEXT + ' ký tự', { fields: { text: 'Quá dài' } });
+  var key = Rules.trim(props_().getProperty('DEEPSEEK_API_KEY'));
+  if (!key) throw Rules.err('AI_UNAVAILABLE', 'AI chưa được bật — quản trị viên dán API key DeepSeek ở Cài đặt › Quản trị');
+  if (!assistQuotaTake_(user.email)) throw Rules.err('AI_UNAVAILABLE', 'Hôm nay Cún nói nhiều quá rồi, mai nói tiếp nha (hết ' + ASSIST_DAILY_LIMIT + ' lượt AI)');
+  var messages = Rules.buildBuddyMessages(hist, { summary: body.summary, time: body.time, name: user.name });
+  try { return Rules.sanitizeBuddy(deepseekJson_(key, messages, 300, 0.9)); }
+  catch (e1) {
+    try { return Rules.sanitizeBuddy(deepseekJson_(key, messages.concat([{ role: 'user', content: Rules.AI_RETRY_PROMPT }]), 300, 0.9)); }
+    catch (e2) { throw Rules.err('AI_UNAVAILABLE', 'AI tạm thời không khả dụng, vui lòng thử lại sau'); }
+  }
 }
 
 /** Báo cáo tuần: gửi email thứ Hai cho quản trị viên + VA (gọi từ dailyJob). AI lỗi → gửi bản số liệu. */

@@ -464,6 +464,7 @@ var Rules = (function () {
     action = str(action);
     if (action === 'admin') return user.isOwner === true ? ok() : no('Chỉ quản trị viên (chủ app) được làm');
     if (action === 'aiAssist') return va ? ok() : no();
+    if (action === 'buddyChat') return (va || requester) ? ok() : no();
     if (action === 'view' || action === 'comment') return (va || own) ? ok() : no();
     if (action === 'create') return requester ? ok() : no();
     if (action === 'delete' || action === 'setSize' || action === 'setHold' || action === 'saveConfig' || action === 'viewAllConfig') return va ? ok() : no();
@@ -1265,6 +1266,54 @@ var Rules = (function () {
     return null;
   }
 
+  // ---------- Cún chat (DeepSeek): nói chuyện kiểu người, GenZ, kèm cảm xúc để chọn meme ----------
+  // Tên cảm xúc = tên 5 thư mục meme trong src/assets/memes/. Đổi tên thư mục thì sửa ở đây.
+  var BUDDY_MOODS = ['vui', 'buon', 'gian', 'met', 'che'];
+  // Khi nào dùng cảm xúc nào — AI đọc đoạn này để chọn meme hợp với tin nhắn của người dùng.
+  var BUDDY_MOOD_GUIDE = [
+    'vui: người dùng vui, khoe thành tích, cảm ơn, khen Cún, xong việc, tin tốt.',
+    'buon: người dùng buồn, bị chê, đơn bị trả về, thất vọng, cần an ủi.',
+    'gian: người dùng trêu chọc/chửi Cún, bắt nạt Cún, hoặc kể chuyện bất công khiến Cún bức xúc thay.',
+    'met: người dùng than mệt, OT, buồn ngủ, deadline dí, quá tải, lười.',
+    'che: người dùng khoe lố, nói điều vô lý, hỏi câu ngớ ngẩn, hoặc Cún muốn cà khịa nhẹ.'
+  ].join('\n');
+  var BUDDY_MAX_TURNS = 10;      // số lượt hội thoại gần nhất gửi cho AI
+  var BUDDY_MAX_TEXT = 300;      // độ dài tối đa mỗi tin người dùng
+  // TÍNH CÁCH CỦA CÚN — sửa đoạn này để Cún nói đúng chất team.
+  var BUDDY_PERSONA = [
+    'Bạn là Cún, chú chó quản gia của team Visual Artist (VA) trong app VA Tasks.',
+    'Nói chuyện như một người bạn GenZ Việt Nam: tự nhiên, lầy nhẹ, ngắn gọn, không sến, không cringe.',
+    'Xưng "Cún", gọi người dùng là "sếp" hoặc tên của họ.',
+    'Mỗi lượt chỉ trả lời 1–2 câu ngắn. Không dùng markdown, không gạch đầu dòng.',
+    'Được dùng từ lóng GenZ vừa phải (slay, chill, toang, đỉnh nóc kịch trần...), tối đa 1 emoji mỗi câu.',
+    'Nếu được hỏi về công việc, dựa vào phần "Tình hình" bên dưới; không bịa mã đơn hay số liệu.',
+    'Nếu người dùng buồn hay căng thẳng thì an ủi thật lòng trước, đùa sau.'
+  ].join('\n');
+
+  function buildBuddyMessages(history, ctx) {
+    ctx = ctx || {};
+    var sys = BUDDY_PERSONA + '\n\n' +
+      'Tình hình (chỉ để tham khảo): ' + cut(stripControl(str(ctx.summary)), 600) + '\n' +
+      'Giờ hiện tại: ' + cut(str(ctx.time), 20) + '. Người đang nói chuyện: ' + cut(stripControl(str(ctx.name)), 60) + '.\n\n' +
+      'Chỉ trả về MỘT đối tượng JSON: {"text": "câu trả lời 1–2 câu", "mood": "một trong ' + BUDDY_MOODS.join('|') + '"}.\n' +
+      '"mood" quyết định meme gửi kèm. Chọn theo cảm xúc trong TIN NHẮN MỚI NHẤT của người dùng (Cún phản ứng lại họ):\n' + BUDDY_MOOD_GUIDE;
+    var msgs = [{ role: 'system', content: sys }];
+    (Array.isArray(history) ? history : []).slice(-BUDDY_MAX_TURNS * 2).forEach(function (m) {
+      if (!m || typeof m !== 'object') return;
+      var t = cut(stripControl(str(m.text)).trim(), BUDDY_MAX_TEXT);
+      if (!t) return;
+      msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: t });
+    });
+    return msgs;
+  }
+  function sanitizeBuddy(raw) {
+    raw = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    var text = cut(stripControl(str(raw.text)).trim(), 400);
+    if (!text) throw err('AI_BAD_OUTPUT', 'AI không trả nội dung');
+    var mood = normText(raw.mood);
+    return { text: text, mood: BUDDY_MOODS.indexOf(mood) >= 0 ? mood : '' };
+  }
+
   // ---------- AI trợ lý quản lý (hỏi đáp, xếp lịch, báo cáo tuần) ----------
   var ASSIST_MODES = ['ask', 'plan', 'weekly'];
   var ASSIST_MAX_TASKS = 80;
@@ -1447,6 +1496,7 @@ var Rules = (function () {
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
+    BUDDY_MOODS: BUDDY_MOODS, BUDDY_MAX_TEXT: BUDDY_MAX_TEXT, buildBuddyMessages: buildBuddyMessages, sanitizeBuddy: sanitizeBuddy,
     sanitizeAiResult: sanitizeAiResult, buildAiMessages: buildAiMessages, parseAiJson: parseAiJson,
     ASSIST_MODES: ASSIST_MODES, ASSIST_MAX_QUESTION: ASSIST_MAX_QUESTION, assistSnapshot: assistSnapshot, weeklyStats: weeklyStats,
     buildAssistMessages: buildAssistMessages, sanitizeAssist: sanitizeAssist, weeklyReportText: weeklyReportText
@@ -1459,7 +1509,7 @@ var Rules = (function () {
 var PENDING_MAIL_ = [];
 var LOCK_DEPTH_ = 0;
 var SESSION_ACTIONS_ = ['me', 'logout', 'list', 'getConfig', 'log', 'create', 'update', 'delete', 'addComment',
-  'saveConfig', 'split', 'aiIntake', 'aiAssist', 'adminGet', 'adminSave', 'adminTestAi'];
+  'saveConfig', 'split', 'aiIntake', 'aiAssist', 'buddyChat', 'adminGet', 'adminSave', 'adminTestAi'];
 
 function doGet(e) {
   return respond_(function () {
@@ -1502,6 +1552,7 @@ function doPost(e) {
       case 'split': return { data: actionSplit_(body, user, cfg) };
       case 'aiIntake': return { data: actionAiIntake_(body, user, cfg) };
       case 'aiAssist': return { data: actionAiAssist_(body, user, cfg) };
+      case 'buddyChat': return { data: actionBuddyChat_(body, user) };
       case 'adminGet': return { data: actionAdminGet_(user) };
       case 'adminSave': return { data: actionAdminSave_(body, user) };
       case 'adminTestAi': return { data: actionAdminTestAi_(user) };
@@ -1827,10 +1878,10 @@ function assistQuotaTake_(email) {
     return true;
   });
 }
-function deepseekJson_(key, messages, maxTokens) {
+function deepseekJson_(key, messages, maxTokens, temperature) {
   var resp = UrlFetchApp.fetch(DEEPSEEK_URL, {
     method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + key },
-    payload: JSON.stringify({ model: 'deepseek-chat', temperature: 0.3, max_tokens: maxTokens || 1800,
+    payload: JSON.stringify({ model: 'deepseek-chat', temperature: temperature == null ? 0.3 : temperature, max_tokens: maxTokens || 1800,
       response_format: { type: 'json_object' }, messages: messages }),
     muteHttpExceptions: true
   });
@@ -1870,6 +1921,25 @@ function actionAiAssist_(body, user, cfg) {
   var sh = getDataSheet_();
   var tasks = readAll_(sh, headerMap_(sh)).tasks;
   return runAssist_(mode, q, tasks, cfg, null);  // chỉ VA trong danh sách thành viên mới được AI phân việc
+}
+
+/** Cún chat: hội thoại ngắn kiểu GenZ, trả {text, mood}. Dùng chung hạn mức lượt AI/ngày. */
+function actionBuddyChat_(body, user) {
+  var p = Rules.can(user, 'buddyChat');
+  if (!p.ok) throw forbidden_(p.reason);
+  var hist = Array.isArray(body.history) ? body.history : [];
+  var last = hist.length ? Rules.trim(hist[hist.length - 1] && hist[hist.length - 1].text) : '';
+  if (last.length < 1) throw Rules.err('VALIDATION', 'Dữ liệu không hợp lệ: Hãy nhập tin nhắn', { fields: { text: 'Hãy nhập tin nhắn' } });
+  if (last.length > Rules.BUDDY_MAX_TEXT) throw Rules.err('VALIDATION', 'Dữ liệu không hợp lệ: Tối đa ' + Rules.BUDDY_MAX_TEXT + ' ký tự', { fields: { text: 'Quá dài' } });
+  var key = Rules.trim(props_().getProperty('DEEPSEEK_API_KEY'));
+  if (!key) throw Rules.err('AI_UNAVAILABLE', 'AI chưa được bật — quản trị viên dán API key DeepSeek ở Cài đặt › Quản trị');
+  if (!assistQuotaTake_(user.email)) throw Rules.err('AI_UNAVAILABLE', 'Hôm nay Cún nói nhiều quá rồi, mai nói tiếp nha (hết ' + ASSIST_DAILY_LIMIT + ' lượt AI)');
+  var messages = Rules.buildBuddyMessages(hist, { summary: body.summary, time: body.time, name: user.name });
+  try { return Rules.sanitizeBuddy(deepseekJson_(key, messages, 300, 0.9)); }
+  catch (e1) {
+    try { return Rules.sanitizeBuddy(deepseekJson_(key, messages.concat([{ role: 'user', content: Rules.AI_RETRY_PROMPT }]), 300, 0.9)); }
+    catch (e2) { throw Rules.err('AI_UNAVAILABLE', 'AI tạm thời không khả dụng, vui lòng thử lại sau'); }
+  }
 }
 
 /** Báo cáo tuần: gửi email thứ Hai cho quản trị viên + VA (gọi từ dailyJob). AI lỗi → gửi bản số liệu. */

@@ -16,6 +16,16 @@ ASSETS = {'mascotWave': data_uri('mascot-wave.webp', 'image/webp'), 'mascotSmile
           'mascotTired': data_uri('mascot-tired.webp', 'image/webp'), 'mascotSnack': data_uri('mascot-snack.webp', 'image/webp'),
           'teamBadge': data_uri('team-badge.webp', 'image/webp')}
 FAVICON = data_uri('favicon.png', 'image/png')
+# meme của Cún: src/assets/memes/<cảm xúc>/*.webp|png|jpg — tên thư mục phải khớp Rules.BUDDY_MOODS trong rules.js
+MEME_DIR = os.path.join(SRC, 'assets', 'memes'); MIME = {'.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}
+ASSETS['memes'] = {}
+if os.path.isdir(MEME_DIR):
+    for mood in sorted(os.listdir(MEME_DIR)):
+        d = os.path.join(MEME_DIR, mood)
+        if not os.path.isdir(d): continue
+        files = [f for f in sorted(os.listdir(d)) if os.path.splitext(f)[1].lower() in MIME]
+        ASSETS['memes'][mood] = [data_uri(os.path.join('memes', mood, f), MIME[os.path.splitext(f)[1].lower()]) for f in files]
+    print('memes:', {k: len(v) for k, v in ASSETS['memes'].items()})
 app = "(function () {\n'use strict';\nconst ASSETS = " + json.dumps(ASSETS) + ";\n" + "\n".join(rd(n) for n in ['app-core.js', 'app-ops.js', 'app-views.js', 'app-ai.js', 'buddy-lines.js', 'app-buddy.js', 'app-main.js']) + "\n})();\n"
 shell = rd('shell.html')
 assert '/*__RULES__*/' in shell and '/*__APP__*/' in shell, 'shell.html placeholders missing'

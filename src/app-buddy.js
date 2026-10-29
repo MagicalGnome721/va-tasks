@@ -9,6 +9,7 @@ const BUDDY_NAME = 'Cún';
 const Buddy = {
   el: null, open: false, mood: 'wave', line: '', sub: '', chips: [], typing: null, hideTimer: null, idleTimer: null,
   snacked: false, greetedSession: '', busy: false, answer: null,
+  thread: [],   // chat với Cún: { role: 'user'|'assistant', text, meme? }
 };
 const MOOD_IMG = () => ({ wave: ASSETS.mascotWave, smile: ASSETS.mascotSmile, tired: ASSETS.mascotTired, snack: ASSETS.mascotSnack });
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -33,6 +34,19 @@ function say(key, vars) {
 const buddyOff = () => LS.raw('va.buddy.off') === '1';
 const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// meme theo cảm xúc (ảnh nhúng từ src/assets/memes/<cảm xúc>/), cũng "xáo bài" để ít trùng
+const MEME_BAG = {};
+function pickMeme(mood) {
+  const pool = (ASSETS.memes || {})[mood] || [];
+  if (!pool.length) return '';
+  let q = MEME_BAG[mood];
+  if (!q || !q.length) {
+    q = pool.map((_, i) => i);
+    for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; }
+    MEME_BAG[mood] = q;
+  }
+  return pool[q.shift()];
+}
 function firstName(n) { const p = trim(n).split(/\s+/); return p[p.length - 1] || 'bạn'; }
 function timeGreeting() {
   const h = new Date().getHours();
@@ -89,8 +103,9 @@ function buddyHtml() {
       <p class="buddy-line" aria-live="polite"><b>${esc(B.line)}</b></p>
       ${B.sub ? `<p class="buddy-sub" data-buddy-sub>${esc(B.sub)}</p>` : ''}
       ${B.answer ? `<div class="buddy-answer">${B.answer}</div>` : ''}
+      ${B.thread.length ? `<div class="buddy-thread" data-buddy-thread>${B.thread.slice(-12).map((m) => `<div class="bt-msg is-${m.role === 'user' ? 'me' : 'cun'}"><p>${esc(m.text)}</p>${m.meme ? `<img class="bt-meme" src="${m.meme}" alt="meme" draggable="false">` : ''}</div>`).join('')}${B.busy ? `<div class="bt-msg is-cun is-typing"><p><span></span><span></span><span></span></p></div>` : ''}</div>` : ''}
       ${B.chips.length ? `<div class="buddy-chips">${B.chips.map((c) => `<button type="button" class="buddy-chip" data-buddy-chip="${esc(c.k)}">${esc(c.t)}</button>`).join('')}</div>` : ''}
-      ${isVA() && S.aiEnabled !== false ? `<form class="buddy-ask" data-buddy-form><input type="text" id="buddy-q" placeholder="Hỏi ${BUDDY_NAME} gì cũng được…" maxlength="300" autocomplete="off" ${B.busy ? 'disabled' : ''}><button type="submit" class="btn btn-sm btn-primary" ${B.busy ? 'disabled' : ''}>${B.busy ? '<span class="saving-spin" aria-hidden="true"></span>' : 'Hỏi'}</button></form>` : ''}
+      ${S.aiEnabled !== false ? `<form class="buddy-ask" data-buddy-form><input type="text" id="buddy-q" placeholder="Nói gì với ${BUDDY_NAME} đi…" maxlength="300" autocomplete="off" ${B.busy ? 'disabled' : ''}><button type="submit" class="btn btn-sm btn-primary" ${B.busy ? 'disabled' : ''}>${B.busy ? '<span class="saving-spin" aria-hidden="true"></span>' : 'Gửi'}</button></form>` : ''}
     </aside>` : ''}`;
 }
 function renderBuddy() {
@@ -149,6 +164,30 @@ function armIdle() {
     Buddy.snacked = true;
     buddySay({ mood: 'snack', line: say('idle'), sub: '', chips: [], autoHide: 7000 });
   }, 4 * 60 * 1000);
+}
+
+// ---------- chuyển tab: Cún nói 1 câu theo tab ----------
+let tabSayTimer = null;
+function buddyTab(view) {
+  if (!S.user || buddyOff() || !S.loaded || view === 'new') return;   // tab Tạo đơn đã có popup riêng
+  if (Buddy.busy) return;
+  const typing = Buddy.el && Buddy.el.contains(document.activeElement) && document.activeElement.id === 'buddy-q';
+  if (typing || (Buddy.open && Buddy.thread.length)) return;           // đang chat thì không chen ngang
+  const open = S.tasks.filter((t) => Rules.isOpen(t));
+  const c = {
+    queue: S.tasks.filter((t) => colKey(t) === 'new').length,
+    board: open.length,
+    list: S.tasks.length,
+    overview: open.filter((t) => isMine(t) && ['in_progress', 'changes_requested'].indexOf(statusKey(t)) >= 0).length,
+    mine: open.filter(isOwnOrder).length,
+  }[view];
+  const key = 'tab_' + view;
+  if (!BUDDY_LINES[key]) return;
+  clearTimeout(tabSayTimer);
+  tabSayTimer = setTimeout(() => {
+    buddySay({ mood: pick(['smile', 'wave', 'smile', 'snack']), line: say(key, { c: c == null ? '' : c }), sub: '', chips: [], autoHide: 5000 });
+    armIdle();
+  }, 250);
 }
 
 // ---------- reactions to what just happened ----------
@@ -215,22 +254,35 @@ function onBuddyChip(k) {
   }
 }
 async function buddyAsk(q) {
-  if (Buddy.busy || q.length < 3 || !guardOnline()) return;
-  Buddy.busy = true; Buddy.line = say('thinking'); Buddy.sub = q; Buddy.answer = null; Buddy.chips = []; renderBuddy();
+  if (Buddy.busy || q.length < 1 || !guardOnline()) return;
+  Buddy.thread.push({ role: 'user', text: q });
+  Buddy.busy = true; Buddy.answer = null; Buddy.chips = []; Buddy.line = say('thinking'); Buddy.sub = '';
+  renderBuddy(); scrollThread();
+  const ctx = buddyContext();
+  const now = new Date();
   try {
-    const r = await S.api.aiAssist({ mode: 'ask', question: q }, auth());
-    AiUi.thread.push({ role: 'user', text: q }, { role: 'ai', r });
-    const txt = trim(r.answer);
-    Buddy.mood = (r.risks || []).some((x) => x.level === 'high') ? 'tired' : 'smile';
-    Buddy.line = 'Nè:'; Buddy.sub = '';
-    Buddy.answer = aiTextHtml(txt.length > 420 ? txt.slice(0, 420) + '…' : txt);
-    Buddy.chips = [{ k: 'ai-full', t: 'Xem đầy đủ' }, { k: 'later', t: 'Oke cảm ơn' }];
+    const r = await S.api.buddyChat({
+      history: Buddy.thread.slice(-20).map((m) => ({ role: m.role, text: m.text })),
+      summary: ctx.sub, time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    }, auth());
+    const moodImg = { vui: 'smile', buon: 'tired', gian: 'tired', met: 'tired', che: 'wave' };   // dáng Cún theo cảm xúc
+    Buddy.mood = moodImg[r.mood] || 'smile';
+    Buddy.thread.push({ role: 'assistant', text: trim(r.text), meme: r.mood ? pickMeme(r.mood) : '' });
+    Buddy.line = say('peek');
   } catch (e0) {
     const e = toApiError(e0);
     if (e.code === 'UNAUTHORIZED') { Buddy.busy = false; App.onUnauthorized(); return; }
+    Buddy.thread.pop();   // tin chưa gửi được: trả lại ô nhập để gửi lại
     Buddy.mood = 'tired'; Buddy.line = say('stuck'); Buddy.sub = e.message; Buddy.chips = [{ k: 'later', t: 'Ok' }];
+    Buddy.busy = false; renderBuddy(); const i = $('#buddy-q'); if (i) i.value = q; return;
   }
-  Buddy.busy = false; renderBuddy();
+  Buddy.busy = false; renderBuddy(); scrollThread();
+  const i = $('#buddy-q'); if (i) i.focus();
+}
+function scrollThread() {
+  const t = document.querySelector('[data-buddy-thread]'); if (!t) return;
+  t.scrollTop = t.scrollHeight;
+  t.querySelectorAll('img.bt-meme').forEach((im) => { if (!im.complete) im.addEventListener('load', () => { t.scrollTop = t.scrollHeight; }, { once: true }); });
 }
 function bindBuddy() {
   const el = document.createElement('div');

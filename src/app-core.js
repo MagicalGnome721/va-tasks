@@ -586,6 +586,23 @@ function createDemoApi() {
       if (stats) out.stats = stats;
       return out;
     }),
+    buddyChat: (body, opts) => run('buddyChat', () => {
+      const user = session(opts);
+      forbid(Rules.can(user, 'buddyChat'));
+      if (aiMode === 'fail') throw Rules.err('AI_UNAVAILABLE', 'AI tạm thời không khả dụng, vui lòng thử lại sau');
+      const hist = Array.isArray(body.history) ? body.history : [];
+      Rules.buildBuddyMessages(hist, { summary: body.summary, time: body.time, name: user.name });
+      // Demo: không gọi DeepSeek — trả câu viết sẵn + cảm xúc ngẫu nhiên để thử giao diện
+      // Demo: đoán cảm xúc bằng từ khóa trong tin mới nhất (bản thật để DeepSeek tự đọc cảm xúc)
+      const last = Rules.normText((hist[hist.length - 1] || {}).text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+      const KW = [['gian', /ngu|dot|xau|ghet|cut|im di|cho chet|bat nat/], ['met', /met|ot|buon ngu|deadline|qua tai|luoi|duoi/],
+        ['buon', /buon|chan|that vong|bi tra|chua dat|khoc|tui than/], ['vui', /vui|xong|dat roi|cam on|tuyet|gioi|hay qua|yeah|dinh/]];
+      const hit = KW.find(([, re]) => re.test(last));
+      const mood = hit ? hit[0] : 'che';
+      const text = { vui: 'Đỉnh nóc kịch trần luôn sếp ơi 🎉', buon: 'Thôi mà, có Cún đây, buồn xíu rồi thôi nha', gian: 'Ủa nói vậy là Cún giận á nha 😤',
+        met: 'Mệt thì nghỉ xíu đi sếp, việc để Cún canh', che: 'Hmm… câu này Cún xin phép cà khịa nhẹ 🙄' }[mood] + ' (demo)';
+      return Rules.sanitizeBuddy({ text, mood });
+    }),
     adminGet: (opts) => run('adminGet', () => { forbid(Rules.can(session(opts), 'admin')); return adminView(); }),
     adminSave: (body, opts) => run('adminSave', () => {
       forbid(Rules.can(session(opts), 'admin'));
@@ -757,6 +774,7 @@ function createRemoteApi(url) {
     aiIntake: async (body, opts) => (await post('aiIntake', opts, body)).data,
     googleSignIn: async (idToken) => (await post('googleSignIn', null, { idToken })).data,
     aiAssist: async (body, opts) => (await post('aiAssist', opts, body)).data,
+    buddyChat: async (body, opts) => (await post('buddyChat', opts, body)).data,
     adminGet: async (opts) => (await post('adminGet', opts)).data,
     adminSave: async (body, opts) => (await post('adminSave', opts, body)).data,
     adminTestAi: async (opts) => (await post('adminTestAi', opts)).data,

@@ -399,6 +399,7 @@ var Rules = (function () {
     action = str(action);
     if (action === 'admin') return user.isOwner === true ? ok() : no('Chỉ quản trị viên (chủ app) được làm');
     if (action === 'aiAssist') return va ? ok() : no();
+    if (action === 'buddyChat') return (va || requester) ? ok() : no();
     if (action === 'view' || action === 'comment') return (va || own) ? ok() : no();
     if (action === 'create') return requester ? ok() : no();
     if (action === 'delete' || action === 'setSize' || action === 'setHold' || action === 'saveConfig' || action === 'viewAllConfig') return va ? ok() : no();
@@ -1200,6 +1201,54 @@ var Rules = (function () {
     return null;
   }
 
+  // ---------- Cún chat (DeepSeek): nói chuyện kiểu người, GenZ, kèm cảm xúc để chọn meme ----------
+  // Tên cảm xúc = tên 5 thư mục meme trong src/assets/memes/. Đổi tên thư mục thì sửa ở đây.
+  var BUDDY_MOODS = ['vui', 'buon', 'gian', 'met', 'che'];
+  // Khi nào dùng cảm xúc nào — AI đọc đoạn này để chọn meme hợp với tin nhắn của người dùng.
+  var BUDDY_MOOD_GUIDE = [
+    'vui: người dùng vui, khoe thành tích, cảm ơn, khen Cún, xong việc, tin tốt.',
+    'buon: người dùng buồn, bị chê, đơn bị trả về, thất vọng, cần an ủi.',
+    'gian: người dùng trêu chọc/chửi Cún, bắt nạt Cún, hoặc kể chuyện bất công khiến Cún bức xúc thay.',
+    'met: người dùng than mệt, OT, buồn ngủ, deadline dí, quá tải, lười.',
+    'che: người dùng khoe lố, nói điều vô lý, hỏi câu ngớ ngẩn, hoặc Cún muốn cà khịa nhẹ.'
+  ].join('\n');
+  var BUDDY_MAX_TURNS = 10;      // số lượt hội thoại gần nhất gửi cho AI
+  var BUDDY_MAX_TEXT = 300;      // độ dài tối đa mỗi tin người dùng
+  // TÍNH CÁCH CỦA CÚN — sửa đoạn này để Cún nói đúng chất team.
+  var BUDDY_PERSONA = [
+    'Bạn là Cún, chú chó quản gia của team Visual Artist (VA) trong app VA Tasks.',
+    'Nói chuyện như một người bạn GenZ Việt Nam: tự nhiên, lầy nhẹ, ngắn gọn, không sến, không cringe.',
+    'Xưng "Cún", gọi người dùng là "sếp" hoặc tên của họ.',
+    'Mỗi lượt chỉ trả lời 1–2 câu ngắn. Không dùng markdown, không gạch đầu dòng.',
+    'Được dùng từ lóng GenZ vừa phải (slay, chill, toang, đỉnh nóc kịch trần...), tối đa 1 emoji mỗi câu.',
+    'Nếu được hỏi về công việc, dựa vào phần "Tình hình" bên dưới; không bịa mã đơn hay số liệu.',
+    'Nếu người dùng buồn hay căng thẳng thì an ủi thật lòng trước, đùa sau.'
+  ].join('\n');
+
+  function buildBuddyMessages(history, ctx) {
+    ctx = ctx || {};
+    var sys = BUDDY_PERSONA + '\n\n' +
+      'Tình hình (chỉ để tham khảo): ' + cut(stripControl(str(ctx.summary)), 600) + '\n' +
+      'Giờ hiện tại: ' + cut(str(ctx.time), 20) + '. Người đang nói chuyện: ' + cut(stripControl(str(ctx.name)), 60) + '.\n\n' +
+      'Chỉ trả về MỘT đối tượng JSON: {"text": "câu trả lời 1–2 câu", "mood": "một trong ' + BUDDY_MOODS.join('|') + '"}.\n' +
+      '"mood" quyết định meme gửi kèm. Chọn theo cảm xúc trong TIN NHẮN MỚI NHẤT của người dùng (Cún phản ứng lại họ):\n' + BUDDY_MOOD_GUIDE;
+    var msgs = [{ role: 'system', content: sys }];
+    (Array.isArray(history) ? history : []).slice(-BUDDY_MAX_TURNS * 2).forEach(function (m) {
+      if (!m || typeof m !== 'object') return;
+      var t = cut(stripControl(str(m.text)).trim(), BUDDY_MAX_TEXT);
+      if (!t) return;
+      msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: t });
+    });
+    return msgs;
+  }
+  function sanitizeBuddy(raw) {
+    raw = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    var text = cut(stripControl(str(raw.text)).trim(), 400);
+    if (!text) throw err('AI_BAD_OUTPUT', 'AI không trả nội dung');
+    var mood = normText(raw.mood);
+    return { text: text, mood: BUDDY_MOODS.indexOf(mood) >= 0 ? mood : '' };
+  }
+
   // ---------- AI trợ lý quản lý (hỏi đáp, xếp lịch, báo cáo tuần) ----------
   var ASSIST_MODES = ['ask', 'plan', 'weekly'];
   var ASSIST_MAX_TASKS = 80;
@@ -1382,6 +1431,7 @@ var Rules = (function () {
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
+    BUDDY_MOODS: BUDDY_MOODS, BUDDY_MAX_TEXT: BUDDY_MAX_TEXT, buildBuddyMessages: buildBuddyMessages, sanitizeBuddy: sanitizeBuddy,
     sanitizeAiResult: sanitizeAiResult, buildAiMessages: buildAiMessages, parseAiJson: parseAiJson,
     ASSIST_MODES: ASSIST_MODES, ASSIST_MAX_QUESTION: ASSIST_MAX_QUESTION, assistSnapshot: assistSnapshot, weeklyStats: weeklyStats,
     buildAssistMessages: buildAssistMessages, sanitizeAssist: sanitizeAssist, weeklyReportText: weeklyReportText
