@@ -4092,7 +4092,7 @@ function splitSuggestionOf(t) {
 function matchesQuick(t, qf) {
   const k = statusKey(t); const ck = colKey(t); const open = Rules.isOpenKey(k);
   switch (qf) {
-    case 'mine': return open && isMine(t);
+    case 'mine': return isVA() ? (open && isMine(t)) : isOwnOrder(t);
     case 'queue': return ck === 'new';
     case 'review': return k === 'review';
     case 'changes': return k === 'changes_requested';
@@ -5470,7 +5470,7 @@ function toolbarHtml(kind) {
   const n = activeFilterCount(p);
   return `<div class="toolbar">
     <div class="toolbar-row">
-      <div class="qf-bar" role="group" aria-label="Lọc nhanh">${QUICK_FILTERS.map((f) => `<button type="button" class="chip" data-testid="quick-filter-${f.key}" data-qf="${f.key}" aria-pressed="${p.qf === f.key}">${f.label}<span class="chip-count" data-qf-count="${f.key}"></span></button>`).join('')}</div>
+      <div class="qf-bar" role="group" aria-label="Lọc nhanh">${QUICK_FILTERS.filter((f) => isVA() || !['hold', 'discuss'].includes(f.key)).map((f) => `<button type="button" class="chip" data-testid="quick-filter-${f.key}" data-qf="${f.key}" aria-pressed="${p.qf === f.key}">${!isVA() && f.key === 'mine' ? 'Đơn của tôi' : f.label}<span class="chip-count" data-qf-count="${f.key}"></span></button>`).join('')}</div>
     </div>
     <div class="toolbar-row">
       <button type="button" class="btn btn-sm btn-filters" data-testid="btn-filters" aria-expanded="${filtersOpen}" aria-controls="filters-panel">${ICONS.filter}<span class="btn-filters-text">${n ? `Bộ lọc (${n})` : 'Bộ lọc'}</span></button>
@@ -5608,18 +5608,19 @@ function renderListResults() {
 // ============================================================================
 const BOARD_COLS = ['new', 'in_progress', 'review', 'changes_requested', 'done'];
 function mountBoard(view) {
-  view.innerHTML = `<div class="view-head"><div><h1 class="view-title">Kanban</h1><p class="view-sub">Kéo thẻ sang cột khác để đổi trạng thái. Cột “Hoàn thành” do người order duyệt.</p></div></div>
+  view.innerHTML = `<div class="view-head"><div><h1 class="view-title">Kanban</h1><p class="view-sub">${isVA() ? 'Kéo thẻ sang cột khác để đổi trạng thái. Cột “Hoàn thành” do người order duyệt.' : 'Tiến độ của toàn team VA — đơn nào đang trong hàng, đang làm, chờ duyệt. Chỉ xem; đơn có 🔒 là của người khác.'}</p></div></div>
     ${toolbarHtml('board')}<div class="board" id="board" aria-label="Bảng Kanban"></div>`;
   renderBoardColumns();
   refreshToolbarState('board');
 }
 function cardHtml(t) {
   const d = dlState(t); const k = statusKey(t); const ck = colKey(t);
-  const q = ck === 'new' ? S.qi[t.id] : null;
-  return `<article class="kcard ${d.state === 'overdue' ? 'is-overdue' : ''} ${S.pending.has(t.id) ? 'is-saving' : ''} ${onHold(t) ? 'is-held' : ''}" data-testid="task-card-${esc(t.id)}" data-id="${esc(t.id)}" data-status="${ck}" tabindex="0" aria-label="${esc(t.id)}: ${esc(t.name)}">
+  const q = ck === 'new' ? queueInfoOf(t) : null;
+  const ro = !isVA();
+  return `<article class="kcard ${ro ? 'is-readonly' : ''} ${t._redacted ? 'is-locked' : ''} ${d.state === 'overdue' ? 'is-overdue' : ''} ${S.pending.has(t.id) ? 'is-saving' : ''} ${onHold(t) ? 'is-held' : ''}" data-testid="task-card-${esc(t.id)}" data-id="${esc(t.id)}" data-status="${ck}" tabindex="0" aria-label="${esc(t.id)}: ${esc(t.name)}">
     <div class="kcard-top">${q ? `<span class="kpos" title="Vị trí trong hàng">#${q.position}</span>` : ''}${idHtml(t)}<span class="prio-dot" style="--pr:${prColorIdx(effPrio(t).index)}" title="Ưu tiên: ${esc(effPrio(t).label)}"></span><span class="sr-only">Ưu tiên ${esc(effPrio(t).label)}</span>${sizeBadge(t)}${savingHtml(t)}</div>
-    ${t._tmp ? '' : `<button type="button" class="icon-btn icon-btn-sm kcard-menu-btn" data-testid="card-menu-${esc(t.id)}" data-card-menu="${esc(t.id)}" aria-label="Thao tác cho ${esc(t.id)}" aria-haspopup="menu">${ICONS.dots}</button>`}
-    <div class="kcard-name">${esc(t.name)}</div>
+    ${t._tmp || ro ? '' : `<button type="button" class="icon-btn icon-btn-sm kcard-menu-btn" data-testid="card-menu-${esc(t.id)}" data-card-menu="${esc(t.id)}" aria-label="Thao tác cho ${esc(t.id)}" aria-haspopup="menu">${ICONS.dots}</button>`}
+    <div class="kcard-name">${t._redacted ? '<span aria-label="Đơn của người khác">🔒 </span>' : ''}${esc(t.name)}${ro && isOwnOrder(t) ? ' <span class="rt-me">Của tôi</span>' : ''}</div>
     <div class="kcard-meta">${k === 'unknown' || isLegacy(k) ? statusPill(t) : ''}${trim(t.deadline) || ck !== 'done' ? deadlineBadge(t) : ''}${flagsHtml(t, { child: false })}</div>
     <div class="kcard-foot">${Number(t.revisionCount) > 0 ? `<span class="mini-tag ${discuss(t) ? 'is-hot' : ''}" title="Số lần sửa">Sửa ${esc(t.revisionCount)}×</span>` : ''}<span style="flex:1"></span>${trim(t.assignee) ? `<span title="${esc(t.assignee)}">${avatar(t.assignee, 'avatar-sm')}</span><span class="sr-only">Người làm: ${esc(t.assignee)}</span>` : `<span title="Chưa có người làm">${avatar('', 'avatar-sm')}</span>`}</div>
   </article>`;
@@ -5643,7 +5644,7 @@ function renderBoardColumns() {
       items = items.slice().sort((a, b) => trim(b.reviewDate).localeCompare(trim(a.reviewDate)) || idNum(b.id) - idNum(a.id));
       if (items.length > 20) { items = items.slice(0, 20); more = `<div class="col-more"><a href="#/list?status=done&closed=1">Xem tất cả trong Danh sách</a></div>`; }
     } else if (key === 'new') {
-      items = items.slice().sort((a, b) => ((S.qi[a.id] || {}).position || 9999) - ((S.qi[b.id] || {}).position || 9999) || idNum(a.id) - idNum(b.id));
+      items = items.slice().sort((a, b) => ((queueInfoOf(a) || {}).position || 9999) - ((queueInfoOf(b) || {}).position || 9999) || idNum(a.id) - idNum(b.id));
     } else if (key === 'in_progress' || key === 'changes_requested') {
       items = boardSort(items);
     } else items = items.slice().sort((a, b) => trim(a.reviewDate).localeCompare(trim(b.reviewDate)) || idNum(a.id) - idNum(b.id));
@@ -5661,6 +5662,7 @@ function renderBoardColumns() {
 // --- Drag & drop (pointer-based; mouse + touch long-press) ---
 const Drag = { st: null };
 function boardPointerDown(e) {
+  if (!isVA()) return; // người order chỉ xem Kanban
   const card = e.target.closest('.kcard');
   if (!card || e.button > 0 || e.target.closest('button')) return;
   const id = card.dataset.id; if (!id || id.startsWith('tmp-') || !S.online) return;
@@ -8907,7 +8909,7 @@ const NAV_ICONS = {
 function navItems() {
   return isVA()
     ? [['queue', 'Hàng đợi'], ['mine', 'Bảng đơn'], ['board', 'Kanban'], ['list', 'Danh sách'], ['overview', 'Tổng quan'], ['ai', 'Trợ lý AI'], ['settings', 'Cài đặt']]
-    : [['mine', 'Bảng đơn'], ['new', 'Tạo đơn'], ['settings', 'Cài đặt']];
+    : [['mine', 'Bảng đơn'], ['board', 'Kanban'], ['new', 'Tạo đơn'], ['settings', 'Cài đặt']];
 }
 function renderNav() {
   const nav = $('#sidenav');
@@ -8956,7 +8958,7 @@ function applyTheme(t) {
 // App / routing
 // ============================================================================
 const VA_VIEWS = ['queue', 'board', 'list', 'overview', 'ai', 'settings', 'mine', 'new'];
-const REQ_VIEWS = ['mine', 'new', 'settings'];
+const REQ_VIEWS = ['mine', 'board', 'new', 'settings'];
 const App = {
   bgHash: '', cameFromApp: false, mounted: null, returnHash: '',
   openTask(id) { const ot = getTask(id); if (ot && ot._redacted) { toast('Đơn của người khác — chỉ xem được dòng tóm tắt trong bảng'); return; } App.cameFromApp = true; location.hash = '#/task/' + encodeURIComponent(id); },
@@ -9438,7 +9440,7 @@ function onGlobalKeydown(e) {
   if (tg && (tg.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;
   if (layers.length) return;
   const k = e.key;
-  const G = isVA() ? { q: '#/queue', o: '#/overview', l: '#/list', b: '#/board', s: '#/settings', m: '#/mine' } : { m: '#/mine', s: '#/settings' };
+  const G = isVA() ? { q: '#/queue', o: '#/overview', l: '#/list', b: '#/board', s: '#/settings', m: '#/mine' } : { m: '#/mine', b: '#/board', s: '#/settings' };
   if (gPending && Date.now() - gPending < 1000 && G[k]) { gPending = 0; e.preventDefault(); location.hash = G[k]; return; }
   gPending = 0;
   if (k === '/' && isVA()) { e.preventDefault(); const box = $('#search-box'); if (isMobile()) box.classList.add('is-open'); $('#global-search').focus(); return; }
