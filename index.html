@@ -1455,6 +1455,10 @@ body.has-drawer .buddy[data-open="false"] { display: none; }
 .rt-gallery { margin-top: 14px; }
 .rt-prog { display: inline-block; width: 44px; height: 6px; border-radius: 3px; background: var(--surface-3); margin-right: 6px; vertical-align: middle; overflow: hidden; }
 .rt-prog > span { display: block; height: 100%; background: var(--st-done); }
+.rt-sub { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 12px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-item:has(.rt-sub) { display: flex; align-items: center; }
+.rt-cb { display: inline-grid; place-items: center; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 4px; font-size: 11px; }
+.rt-cb.is-on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .rt-check { display: inline-block; width: 18px; color: var(--brand); font-weight: 700; }
 @media (max-width: 720px) { .rt-title { font-size: 24px; } .rt-search input { width: 100px; } .rt-scroll { max-height: none; } }
 </style>
@@ -1609,9 +1613,10 @@ var Rules = (function () {
     dueSoonDays: 2,
     pollSeconds: 60,
     version: 1,
-    updatedAt: ''
+    updatedAt: '',
+    props: { defs: {}, order: [] }
   };
-  var CONFIG_KEYS = ['teams', 'projects', 'assetTypes', 'priorities', 'members', 'dueSoonDays', 'pollSeconds', 'version', 'updatedAt'];
+  var CONFIG_KEYS = ['teams', 'projects', 'assetTypes', 'priorities', 'members', 'dueSoonDays', 'pollSeconds', 'props', 'version', 'updatedAt'];
 
   // ---------- helpers ----------
   function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
@@ -1870,9 +1875,17 @@ var Rules = (function () {
     if (ownerUser && trim(ownerUser.name) && out.indexOf(trim(ownerUser.name)) < 0) out.push(trim(ownerUser.name));
     return out;
   }
-  function visibleTasks(user, tasks) {
+  function visibleTasks(user, tasks, props) {
     if (!user) return [];
     if (isVa(user) || isSystem(user)) return (tasks || []).slice();
+    // cột bị đặt "Ẩn với người order" (Property access) bị cắt cả trên đơn của chính họ
+    var hidden = Object.keys(propsOf(props).defs).filter(function (k) { return propAccess(props, k) === 'hidden'; });
+    if (hidden.length) {
+      return (tasks || []).map(function (t) {
+        if (!isOwnTask(user, t)) return publicTask(t);
+        var c = clone(t); hidden.forEach(function (k) { delete c[k]; }); return c;
+      });
+    }
     // Người order thấy TOÀN BỘ hàng đợi, nhưng đơn của người khác chỉ còn dòng tóm tắt
     // (server cắt trường chi tiết trước khi trả về — xem PUBLIC_TASK_KEYS).
     return (tasks || []).map(function (t) { return isOwnTask(user, t) ? t : publicTask(t); });
@@ -2082,7 +2095,13 @@ var Rules = (function () {
     if (skip) SERVER_KEYS.forEach(function (k) { if (k !== 'id') delete changes[k]; });
     var keys = Object.keys(changes);
     // 1. key validity
+    var props = ctx.props || null, liveCx = liveCustomKeys(props);
     keys.forEach(function (k) {
+      if (isCustomKey(k) && liveCx.indexOf(k) >= 0) {
+        var nv = normPropValue(props, k, changes[k]);
+        if (nv.e) { var fe = {}; fe[k] = nv.e; throw err('VALIDATION', 'Dữ liệu không hợp lệ: ' + nv.e, { fields: fe }); }
+        changes[k] = nv.v; return;
+      }
       if (WRITE_KEYS.indexOf(k) < 0 || (SERVER_KEYS.indexOf(k) >= 0 && !sys)) {
         var f = {}; f[k] = 'Trường không được phép sửa';
         throw err('VALIDATION', 'Dữ liệu không hợp lệ: Trường không được phép sửa (' + k + ')', { fields: f });
@@ -2120,8 +2139,22 @@ var Rules = (function () {
     Object.keys(changes).forEach(function (k) { if (k !== 'status' && !strictEqual(changes[k], current[k])) fieldChanges[k] = changes[k]; });
     // 4. permissions
     if (!sys) {
-      var pe = can(user, 'edit', current, fieldChanges);
+      var builtinChanges = {}, customChanges = [];
+      Object.keys(fieldChanges).forEach(function (k) { if (isCustomKey(k)) customChanges.push(k); else builtinChanges[k] = fieldChanges[k]; });
+      var pe = can(user, 'edit', current, builtinChanges);
       if (!pe.ok) throw forbidden(pe.reason);
+      if (!va) {
+        var own = isOwnTask(user, current);
+        Object.keys(fieldChanges).forEach(function (k) {
+          if (propAccess(props, k) !== 'edit') throw forbidden('Bạn không thể sửa "' + (propDef(props, k).label || propDef(props, k).header || HEADERS[k] || k) + '"');
+          if (isCustomKey(k) && (!own || !isNewLike(current.status))) throw forbidden('Chỉ sửa được đơn của bạn khi còn ở trạng thái Mới');
+        });
+        // giới hạn số giá trị (Limit) cho cột hệ thống dạng chọn nhiều / người
+        Object.keys(builtinChanges).forEach(function (k) {
+          var lim = Number(propDef(props, k).limit) || 0;
+          if (lim > 0 && splitMulti(builtinChanges[k]).length > lim) { var fl = {}; fl[k] = 'Tối đa ' + lim + ' giá trị'; throw err('VALIDATION', 'Dữ liệu không hợp lệ: Tối đa ' + lim + ' giá trị', { fields: fl }); }
+        });
+      }
       if (has(fieldChanges, 'size')) { var ps = can(user, 'setSize', current); if (!ps.ok) throw forbidden(ps.reason); }
       if (has(fieldChanges, 'holdReason')) { var ph = can(user, 'setHold', current); if (!ph.ok) throw forbidden(ph.reason); }
       if (has(fieldChanges, 'priority')) { var pp = can(user, 'setPriority', current); if (!pp.ok) throw forbidden(pp.reason); }
@@ -2191,7 +2224,8 @@ var Rules = (function () {
       merged.notes = appendNote(merged.notes, noteLine(ctx.todayDmy, ctx.hhmm, actor, 'Tiếp tục', 'Bỏ tạm dừng'));
     }
     // 7. diff + logs
-    var changedKeys = WRITE_KEYS.filter(function (k) { return k !== 'id' && !strictEqual(merged[k], current[k]); });
+    var changedKeys = WRITE_KEYS.filter(function (k) { return k !== 'id' && !strictEqual(merged[k], current[k]); })
+      .concat(liveCx.filter(function (k) { return has(merged, k) && str(merged[k]) !== str(current[k]); }));
     var logs = [];
     changedKeys.forEach(function (k) {
       if (k === 'status') return;
@@ -2217,7 +2251,8 @@ var Rules = (function () {
 
   // ctx = { today, actor, user, priorities?, aiResult? } — requester/requesterEmail always come from ctx.user.
   function buildNewTask(input, ctx, existingIds) {
-    input = input || {}; ctx = ctx || {};
+    ctx = ctx || {};
+    input = applyPropDefaults(input || {}, ctx.props);
     var user = ctx.user || null;
     var va = isVa(user);
     var ai = ctx.aiResult || null;
@@ -2262,6 +2297,14 @@ var Rules = (function () {
     t.holdReason = '';
     t.parentId = '';
     t.sheetDeadlineWarning = '';
+    var cxErr = {};
+    liveCustomKeys(ctx.props).forEach(function (k) {
+      if (!has(input, k) || trim(input[k]) === '') return;
+      if (!va && propAccess(ctx.props, k) !== 'edit' && trim(input[k]) !== trim(propDef(ctx.props, k).def)) return;
+      var nv = normPropValue(ctx.props, k, input[k]);
+      if (nv.e) cxErr[k] = nv.e; else t[k] = nv.v;
+    });
+    if (Object.keys(cxErr).length) throw validationError(cxErr);
     t.id = nextId(existingIds);
     return t;
   }
@@ -2666,6 +2709,129 @@ var Rules = (function () {
     catch (e) { throw err('AI_BAD_OUTPUT', 'AI trả kết quả không phải JSON'); }
   }
 
+  // ---------- Properties (cột) kiểu Notion ----------
+  // config.props = { defs: { <key>: def }, order: [keys] }   (order = thứ tự cột chung của team)
+  // def = { label, type, options[], limit, def (giá trị mặc định), notify, access, deleted,
+  //         custom:true + header (chỉ cột tự thêm: key cx_xxxxxx, header = tên cột trong Sheet),
+  //         copyFrom (tạm: khi Duplicate, server chép dữ liệu cột nguồn rồi xoá) }
+  var PROP_TYPES = ['text', 'number', 'select', 'multi_select', 'person', 'date', 'url', 'checkbox'];
+  var PROP_TYPE_LABELS = { text: 'Văn bản', number: 'Số', select: 'Chọn 1', multi_select: 'Chọn nhiều', person: 'Người', date: 'Ngày', url: 'Link', checkbox: 'Hộp tick' };
+  var BUILTIN_PROP_TYPES = { id: 'id', team: 'select', project: 'select', assetType: 'multi_select', name: 'title', description: 'text',
+    briefLink: 'url', outputSpec: 'text', quantity: 'number', priority: 'select', requester: 'person', assignee: 'person',
+    requestDate: 'date', deadline: 'date', status: 'status', progress: 'number', deliveryLink: 'url', notes: 'text', sheetDeadlineWarning: 'text' };
+  var PROP_KEYS = Object.keys(BUILTIN_PROP_TYPES);
+  // cột hệ thống: được đổi loại hiển thị không? (các cột có logic riêng thì khoá)
+  var PROP_TYPEABLE = ['team', 'project', 'assetType', 'description', 'briefLink', 'outputSpec', 'deliveryLink', 'notes'];
+  var PROP_NO_DELETE = ['id', 'name', 'status'];
+  var PROP_NO_ACCESS = ['id', 'name', 'status'];          // người order luôn thấy
+  var PROP_NO_DEFAULT = ['id', 'name', 'status', 'requester', 'requestDate', 'progress', 'sheetDeadlineWarning', 'assignee', 'deliveryLink'];
+  var PROP_NOTIFY = ['none', 'people', 'requester', 'assignee', 'involved'];
+  var PROP_ACCESS = ['edit', 'view', 'hidden'];
+  function isCustomKey(k) { return /^cx_[a-z0-9]{6}$/.test(str(k)); }
+  function propsOf(cfgOrProps) {
+    var p = cfgOrProps && cfgOrProps.defs ? cfgOrProps : (cfgOrProps && cfgOrProps.props) || null;
+    return { defs: (p && p.defs) || {}, order: (p && p.order) || [] };
+  }
+  function propDef(props, k) { return propsOf(props).defs[k] || {}; }
+  function propType(props, k) {
+    var d = propDef(props, k);
+    if (isCustomKey(k)) return PROP_TYPES.indexOf(d.type) >= 0 ? d.type : 'text';
+    if (PROP_TYPEABLE.indexOf(k) >= 0 && PROP_TYPES.indexOf(d.type) >= 0) return d.type;
+    return BUILTIN_PROP_TYPES[k] || 'text';
+  }
+  function liveCustomKeys(props) {
+    var defs = propsOf(props).defs;
+    return Object.keys(defs).filter(function (k) { return isCustomKey(k) && defs[k] && defs[k].custom && !defs[k].deleted; });
+  }
+  function propAccess(props, k) {
+    var a = propDef(props, k).access;
+    if (PROP_NO_ACCESS.indexOf(k) < 0 && PROP_ACCESS.indexOf(a) >= 0) return a;
+    if (isCustomKey(k)) return 'edit';
+    return REQUESTER_EDIT_KEYS.indexOf(k) >= 0 ? 'edit' : 'view';
+  }
+  function splitMulti(v) { return str(v).split(/[,;\n]/).map(function (x) { return trim(x); }).filter(Boolean); }
+  // chuẩn hoá + kiểm tra 1 giá trị theo loại cột; trả { v } hoặc { e }
+  function normPropValue(props, k, v) {
+    var d = propDef(props, k), t = propType(props, k);
+    if (v === null || v === undefined) v = '';
+    if (t === 'checkbox') return { v: (v === true || /^(true|1|x|yes|có|✓)$/i.test(trim(v))) ? 'TRUE' : '' };
+    var s = trim(v);
+    if (!s) return { v: '' };
+    if (t === 'number') { var n = Number(s.replace(',', '.')); return isFinite(n) ? { v: String(n) } : { e: 'Cần nhập số' }; }
+    if (t === 'date') { var y = isValidYmd(s) ? s : dmyToYmd(s); return y ? { v: y } : { e: 'Ngày không hợp lệ' }; }
+    if (t === 'url') { var ls = splitLinks(s); for (var i = 0; i < ls.length; i++) if (!/^https?:\/\//i.test(ls[i])) return { e: 'Link phải bắt đầu bằng http(s)://' }; return { v: s }; }
+    if (t === 'select' || t === 'multi_select' || t === 'person') {
+      var vals = t === 'select' ? [s] : splitMulti(s);
+      var opts = Array.isArray(d.options) ? d.options : [];
+      if (isCustomKey(k) && t !== 'person' && opts.length) {
+        for (var j = 0; j < vals.length; j++) if (!opts.some(function (o) { return normText(o) === normText(vals[j]); })) return { e: '"' + vals[j] + '" không có trong tuỳ chọn' };
+      }
+      var lim = Number(d.limit) || 0;
+      if (lim > 0 && vals.length > lim) return { e: 'Tối đa ' + lim + ' giá trị' };
+      return { v: vals.join(', ') };
+    }
+    if (s.length > 5000) return { e: 'Tối đa 5000 ký tự' };
+    return { v: str(v).replace(/\s+$/, '') };
+  }
+  function validateProps(p) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return 'Cấu hình cột không hợp lệ';
+    var defs = p.defs || {}, order = p.order || [];
+    if (typeof defs !== 'object' || Array.isArray(defs) || !Array.isArray(order)) return 'Cấu hình cột không hợp lệ';
+    var headers = {};
+    Object.keys(HEADERS).forEach(function (k) { headers[normText(HEADERS[k])] = k; });
+    var keys = Object.keys(defs);
+    if (keys.length > 120) return 'Quá nhiều cột';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i], d = defs[k];
+      if (!d || typeof d !== 'object') return 'Cột không hợp lệ: ' + k;
+      var custom = isCustomKey(k);
+      if (!custom && PROP_KEYS.indexOf(k) < 0) return 'Cột không hợp lệ: ' + k;
+      if (has(d, 'label') && (typeof d.label !== 'string' || trim(d.label).length > 60)) return 'Tên cột tối đa 60 ký tự';
+      if (has(d, 'type') && d.type !== '' && PROP_TYPES.indexOf(d.type) < 0) return 'Loại cột không hợp lệ';
+      if (has(d, 'type') && d.type && !custom && PROP_TYPEABLE.indexOf(k) < 0) return 'Không đổi loại được cột hệ thống "' + (HEADERS[k] || k) + '"';
+      if (has(d, 'options') && (!Array.isArray(d.options) || d.options.length > 60 || d.options.some(function (o) { return typeof o !== 'string' || !trim(o) || trim(o).length > 60; }))) return 'Tuỳ chọn không hợp lệ (tối đa 60 mục, mỗi mục ≤ 60 ký tự)';
+      if (has(d, 'limit') && !(Number(d.limit) >= 0 && Number(d.limit) <= 50 && Math.floor(Number(d.limit)) === Number(d.limit))) return 'Giới hạn phải là số nguyên 0–50';
+      if (has(d, 'notify') && PROP_NOTIFY.indexOf(d.notify) < 0) return 'Kiểu thông báo không hợp lệ';
+      if (has(d, 'access') && d.access && (PROP_ACCESS.indexOf(d.access) < 0 || PROP_NO_ACCESS.indexOf(k) >= 0)) return 'Quyền xem không hợp lệ cho cột này';
+      if (d.deleted && PROP_NO_DELETE.indexOf(k) >= 0) return 'Không xoá được cột "' + (HEADERS[k] || k) + '"';
+      if (has(d, 'def') && trim(d.def) && PROP_NO_DEFAULT.indexOf(k) >= 0) return 'Cột này không đặt giá trị mặc định';
+      if (has(d, 'def') && trim(d.def)) { var nv = normPropValue(p, k, d.def); if (nv.e) return 'Giá trị mặc định: ' + nv.e; }
+      if (custom) {
+        if (!d.custom) return 'Cột không hợp lệ: ' + k;
+        var h = normText(d.header);
+        if (!h || trim(d.header).length > 60) return 'Tên cột cần 1–60 ký tự';
+        if (headers[h] && headers[h] !== k) return 'Tên cột "' + trim(d.header) + '" bị trùng';
+        headers[h] = k;
+        if (has(d, 'copyFrom') && d.copyFrom && !(isCustomKey(d.copyFrom) || PROP_KEYS.indexOf(d.copyFrom) >= 0)) return 'Cột nguồn không hợp lệ';
+      }
+    }
+    for (var j = 0; j < order.length; j++) if (!(isCustomKey(order[j]) || PROP_KEYS.indexOf(order[j]) >= 0)) return 'Thứ tự cột không hợp lệ';
+    return null;
+  }
+  // áp giá trị mặc định cho đơn mới (chỉ ô đang trống)
+  function applyPropDefaults(input, props) {
+    var out = clone(input || {}); var defs = propsOf(props).defs;
+    Object.keys(defs).forEach(function (k) {
+      var d = defs[k]; if (!d || d.deleted || !trim(d.def) || PROP_NO_DEFAULT.indexOf(k) >= 0) return;
+      if (isCustomKey(k) && !d.custom) return;
+      if (out[k] === undefined || out[k] === null || trim(out[k]) === '') out[k] = d.def;
+    });
+    return out;
+  }
+  // ai được nhận thông báo khi cột k của đơn thay đổi
+  function propNotifyTargets(props, k, before, after) {
+    var mode = propDef(props, k).notify || (k === 'assignee' ? 'people' : 'none');
+    var names = [], emails = [];
+    if (mode === 'none') return { names: names, emails: emails };
+    if (mode === 'people') {
+      var t = propType(props, k);
+      if (t === 'person') { var old = splitMulti(before && before[k]).map(normText); splitMulti(after && after[k]).forEach(function (n) { if (old.indexOf(normText(n)) < 0) names.push(n); }); }
+    }
+    if (mode === 'requester' || mode === 'involved') emails.push(normEmail(after && after.requesterEmail));
+    if (mode === 'assignee' || mode === 'involved') names.push(trim(after && after.assignee));
+    return { names: names.filter(Boolean), emails: emails.filter(Boolean) };
+  }
+
   // ---------- config ----------
   function mergeConfig(partial) {
     var c = clone(DEFAULT_CONFIG);
@@ -2677,6 +2843,9 @@ var Rules = (function () {
         return { name: trim(m.name), email: normEmail(m.email), team: trim(m.team), isArtist: m.isArtist === true, active: m.active !== false };
       });
     }
+    if (!c.props || typeof c.props !== 'object' || Array.isArray(c.props)) c.props = { defs: {}, order: [] };
+    if (!c.props.defs || typeof c.props.defs !== 'object' || Array.isArray(c.props.defs)) c.props.defs = {};
+    if (!Array.isArray(c.props.order)) c.props.order = [];
     return c;
   }
   function validateConfig(c) {
@@ -2711,6 +2880,7 @@ var Rules = (function () {
     var d = Number(c.dueSoonDays);
     if (!(isFinite(d) && Math.floor(d) === d && d >= 0 && d <= 30)) return 'Số ngày phải là số nguyên 0–30';
     if ([0, 30, 60, 300].indexOf(Number(c.pollSeconds)) < 0) return 'Chu kỳ làm mới không hợp lệ';
+    if (c.props) { var pm = validateProps(c.props); if (pm) return pm; }
     return null;
   }
 
@@ -2940,7 +3110,11 @@ var Rules = (function () {
     roleOf: roleOf, systemUser: systemUser, vaNamesOf: vaNamesOf, isOwnTask: isOwnTask,
     can: can, allowedTransitions: allowedTransitions, transitionNeeds: transitionNeeds,
     visibleTasks: visibleTasks, sanitizeConfigFor: sanitizeConfigFor,
-    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
+    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS,
+    PROP_TYPES: PROP_TYPES, PROP_TYPE_LABELS: PROP_TYPE_LABELS, BUILTIN_PROP_TYPES: BUILTIN_PROP_TYPES, PROP_TYPEABLE: PROP_TYPEABLE,
+    PROP_NO_DELETE: PROP_NO_DELETE, PROP_NO_ACCESS: PROP_NO_ACCESS, PROP_NO_DEFAULT: PROP_NO_DEFAULT, PROP_NOTIFY: PROP_NOTIFY, PROP_ACCESS: PROP_ACCESS,
+    isCustomKey: isCustomKey, propsOf: propsOf, propDef: propDef, propType: propType, propAccess: propAccess, liveCustomKeys: liveCustomKeys,
+    normPropValue: normPropValue, validateProps: validateProps, applyPropDefaults: applyPropDefaults, propNotifyTargets: propNotifyTargets, splitMulti: splitMulti, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
@@ -3216,7 +3390,8 @@ function createDemoApi() {
   const logGet = () => store.get('va.demo.log') || [];
   const logAppend = (entries) => { const l = logGet(); entries.forEach((e) => l.push(e)); store.set('va.demo.log', l); };
   const findIdx = (tasks, id) => tasks.findIndex((t) => trim(t.id).toLowerCase() === trim(id).toLowerCase());
-  const ctxFor = (user) => { const now = new Date(); const cfg = cfgGet(); return { actor: user ? user.name : DEMO_SYSTEM, user: user || null, today: dToday(), todayDmy: Rules.ymdToDmy(dToday()), hhmm: hhmm(now), priorities: cfg.priorities, vaNames: Rules.vaNamesOf(cfg, null) }; };
+  const ctxFor = (user) => { const now = new Date(); const cfg = cfgGet(); return { actor: user ? user.name : DEMO_SYSTEM, user: user || null, today: dToday(), todayDmy: Rules.ymdToDmy(dToday()), hhmm: hhmm(now), priorities: cfg.priorities, props: cfg.props, vaNames: Rules.vaNamesOf(cfg, null) }; };
+  const forU = (user, t) => (t ? Rules.visibleTasks(user, [t], cfgGet().props)[0] : t);
   const entry = (taskId, actor, action, field, oldValue, newValue, text) => ({ ts: isoLocal(), taskId: taskId || '', actor, action, field: field || '', oldValue: oldValue == null ? '' : String(oldValue), newValue: newValue == null ? '' : String(newValue), text: text || '' });
   const SYSTEM_USER = Rules.systemUser();
 
@@ -3365,7 +3540,7 @@ function createDemoApi() {
       if (changed) tasksSet(tasks);
       const cfg = cfgGet();
       // giống server: chú thích (vị trí hàng…) trên toàn bộ, rồi mới cắt theo quyền
-      const visible = Rules.visibleTasks(user, decorate(tasks, tasks));
+      const visible = Rules.visibleTasks(user, decorate(tasks, tasks), cfgGet().props);
       return { tasks: visible, meta: { serverTime: isoLocal(), sheetName: 'Demo', configVersion: cfg.version, warnings: user.role === 'va' ? warnings(tasks) : [], today: dToday() } };
     }),
     getConfig: (opts) => run('getConfig', () => { const user = session(opts); return Object.assign(Rules.sanitizeConfigFor(user, cfgGet()), { aiEnabled: aiMode !== 'fail' }); }),
@@ -3389,7 +3564,7 @@ function createDemoApi() {
       if (opts.clientRequestId) idem.set(opts.clientRequestId, task.id);
       if (opts.draftId) { const drafts = store.get('va.demo.drafts') || {}; delete drafts[opts.draftId]; store.set('va.demo.drafts', drafts); }
       logAppend([entry(task.id, user.name, 'create', '', '', '', task.name)]);
-      return decorate([task], tasksGet())[0];
+      return forU(user, decorate([task], tasksGet())[0]);
     }),
     update: (id, changes, base, opts) => run('update', () => {
       const user = session(opts);
@@ -3397,7 +3572,7 @@ function createDemoApi() {
       if (i < 0 || !Rules.can(user, 'view', tasks[i]).ok) throw Rules.err('NOT_FOUND', 'Không tìm thấy đơn ' + id);
       const prev = tasks[i];
       const res = Rules.applyUpdate(decorate([prev], tasks)[0], changes, base, { note: opts.note, force: !!opts.force }, ctxFor(user));
-      if (!res.changedKeys.length) return decorate([tasks[i]], tasks)[0];
+      if (!res.changedKeys.length) return forU(user, decorate([tasks[i]], tasks)[0]);
       tasks[i] = Object.assign(strip(res.task), { sheetDeadlineWarning: prev.sheetDeadlineWarning, _row: prev._row });
       const ts = isoLocal();
       const logs = res.logs.map((l) => Object.assign({ ts, taskId: tasks[i].id, actor: user.name }, l));
@@ -3429,7 +3604,7 @@ function createDemoApi() {
       }
       tasksSet(tasks);
       logAppend(logs);
-      const out = decorate([tasks[i]], tasks)[0];
+      const out = forU(user, decorate([tasks[i]], tasks)[0]);
       if (meta) out._meta = meta;
       return out;
     }),
@@ -3469,6 +3644,9 @@ function createDemoApi() {
       const next = Rules.mergeConfig(config);
       const msg = Rules.validateConfig(next);
       if (msg) throw Rules.err('VALIDATION', msg, { fields: { config: msg } });
+      // Duplicate property: chép dữ liệu cột nguồn (giống Code.gs syncPropColumns_)
+      const dd = (next.props && next.props.defs) || {};
+      Object.keys(dd).forEach((k) => { if (Rules.isCustomKey(k) && dd[k].copyFrom) { const src = dd[k].copyFrom; tasksSet(tasksGet().map((t) => Object.assign(t, { [k]: t[src] == null ? '' : String(t[src]) }))); delete dd[k].copyFrom; } });
       next.version = Number(cur.version) + 1; next.updatedAt = isoLocal();
       store.set('va.demo.config', next);
       logAppend([entry('', user.name, 'config', '', '', '', 'Cập nhật danh mục')]);
@@ -4274,7 +4452,7 @@ function bindDateInputs(root) {
 // Write operations
 // ============================================================================
 const actor = () => myName() || 'Không rõ';
-function localCtx() { const t = today(); return { actor: actor(), user: S.user, today: t, todayDmy: Rules.ymdToDmy(t), hhmm: hhmm(), priorities: S.config.priorities, vaNames: Rules.vaNamesOf(S.config, S.user && S.user.isOwner ? S.user : null) }; }
+function localCtx() { const t = today(); return { actor: actor(), user: S.user, today: t, todayDmy: Rules.ymdToDmy(t), hhmm: hhmm(), priorities: S.config.priorities, props: S.config.props, vaNames: Rules.vaNamesOf(S.config, S.user && S.user.isOwner ? S.user : null) }; }
 function replaceTask(id, t) {
   const i = S.tasks.findIndex((x) => sameName(x.id, id));
   if (i >= 0) S.tasks[i] = t; else S.tasks.push(t);
@@ -5778,7 +5956,7 @@ async function adminAction(act) {
 // - Công cụ cột: sắp xếp, lọc, nhóm, tính toán, cố định, ẩn, xuống dòng, đổi thứ tự.
 // - Cấu hình bảng lưu riêng theo từng người (localStorage, theo email).
 // ============================================================================
-const RT_COLS = [ // đúng thứ tự cột trong Google Sheet
+const RT_BASE_COLS = [ // cột hệ thống, đúng thứ tự cột trong Google Sheet
   { k: 'id', label: 'ID', w: 100, icon: '№' },
   { k: 'team', label: 'Team request', w: 130, icon: '◉' },
   { k: 'project', label: 'Dự án', w: 120, icon: '◉' },
@@ -5803,8 +5981,46 @@ const RT_CALCS = [['', 'Không tính'], ['count', 'Đếm tất cả'], ['filled
 // Mỗi tab có cấu hình cột riêng (giống view trong Notion). Tab "Done" mặc định gọn như Notion:
 // Dự án · Tên · Mô tả · Link brief · Ưu tiên · Deadline · Assignee · Trạng thái — mới nhất lên đầu.
 const RT_DONE_COLS = ['project', 'name', 'description', 'briefLink', 'priority', 'deadline', 'assignee', 'status'];
+// ----- Properties: cột hệ thống + cột tự thêm (config.props, admin/VA chỉnh) -----
+const RT_TYPE_ICON = { text: '≡', number: '#', select: '◉', multi_select: '☰', person: '👤', date: '▦', url: '🔗', checkbox: '☑', title: 'Aa', id: '№', status: '◉' };
+const rtProps = () => Rules.propsOf(S.config || {});
+const rtCanEditProps = () => isVA();
+function rtAllCols() {
+  const P = rtProps(); const out = [];
+  RT_BASE_COLS.forEach((c) => {
+    const d = P.defs[c.k] || {};
+    if (d.deleted) return;
+    if (!isVA() && Rules.propAccess(P, c.k) === 'hidden') return;
+    const type = Rules.propType(P, c.k);
+    out.push(Object.assign({}, c, { label: trim(d.label) || c.label, type, typed: Rules.PROP_TYPEABLE.includes(c.k) && !!d.type, icon: d.type ? (RT_TYPE_ICON[type] || c.icon) : c.icon }));
+  });
+  Rules.liveCustomKeys(P).forEach((k) => {
+    const d = P.defs[k];
+    if (!isVA() && Rules.propAccess(P, k) === 'hidden') return;
+    const type = Rules.propType(P, k);
+    out.push({ k, label: trim(d.header), w: type === 'text' ? 220 : type === 'checkbox' ? 90 : 150, icon: RT_TYPE_ICON[type] || '≡', custom: true, private: true, type });
+  });
+  return out;
+}
+// thứ tự cột chung của team (Insert left/right ghi vào đây)
+function rtTeamOrder() {
+  const keys = rtAllCols().map((c) => c.k);
+  const ord = rtProps().order.filter((k) => keys.includes(k));
+  return rtMergeOrder(ord, keys);
+}
+// giữ thứ tự riêng của người dùng; cột mới chèn ngay sau cột đứng trước nó trong thứ tự chung
+function rtMergeOrder(mine, team) {
+  const out = (mine || []).filter((k, i, a) => team.includes(k) && a.indexOf(k) === i);
+  team.forEach((k, i) => {
+    if (out.includes(k)) return;
+    let at = 0;
+    for (let j = i - 1; j >= 0; j--) { const pi = out.indexOf(team[j]); if (pi >= 0) { at = pi + 1; break; } }
+    out.splice(at, 0, k);
+  });
+  return out;
+}
 const RT_DEFAULT = (tab) => {
-  const all = RT_COLS.map((c) => c.k);
+  const all = rtTeamOrder();
   const base = { tab, sortKey: '', sortDir: 'asc', hidden: [], wrap: [], mine: false, q: '', filters: {}, groupBy: '', calcs: { id: 'count' }, freeze: 'name', order: all };
   if (tab === 'done') Object.assign(base, { order: RT_DONE_COLS.concat(all.filter((k) => !RT_DONE_COLS.includes(k))), hidden: all.filter((k) => !RT_DONE_COLS.includes(k)), calcs: { project: 'count' }, sortKey: 'deadline', sortDir: 'desc' });
   return base;
@@ -5815,15 +6031,16 @@ function rtPrefs() {
   if (!RT_ALL || RT_FOR !== rtKey()) { RT_FOR = rtKey(); RT_ALL = LS.get(rtKey(), null) || {}; RT_ALL.views = RT_ALL.views || {}; RT_ALL.tab = RT_ALL.tab || 'table'; }
   const tab = RT_ALL.tab;
   const v = Object.assign(RT_DEFAULT(tab), RT_ALL.views[tab] || {}, { tab });
-  const known = RT_COLS.map((c) => c.k);
-  // cột mới thêm sau này vẫn hiện; cột không còn tồn tại bị bỏ
-  v.order = (v.order || []).filter((k) => known.includes(k)).concat(known.filter((k) => !(v.order || []).includes(k)));
+  // cột mới thêm sau này vẫn hiện (đúng vị trí trong thứ tự chung); cột đã xoá bị bỏ
+  v.order = rtMergeOrder(v.order, rtTeamOrder());
   RT_ALL.views[tab] = v; RT = v;
   return v;
 }
 function rtSave() { if (RT) { RT_ALL.tab = RT.tab; RT_ALL.views[RT.tab] = RT; } LS.set(rtKey(), RT_ALL); }
-const rtCol = (k) => RT_COLS.find((c) => c.k === k);
-const rtVisibleCols = () => rtPrefs().order.filter((k) => !rtPrefs().hidden.includes(k)).map(rtCol);
+const rtCol = (k) => rtAllCols().find((c) => c.k === k) || RT_BASE_COLS.find((c) => c.k === k) || { k, label: k, w: 150, icon: '≡' };
+const rtVisibleCols = () => { const all = rtAllCols(); return rtPrefs().order.filter((k) => !rtPrefs().hidden.includes(k)).map((k) => all.find((c) => c.k === k)).filter(Boolean); };
+const rtIsMulti = (k) => ['multi_select', 'person'].includes(rtCol(k).type);
+const rtValues = (t, k) => (rtIsMulti(k) ? rtTags(rtVal(t, k)) : [rtVal(t, k)]);
 const rtTags = (v) => String(v || '').split(/[,;|]/).map((x) => trim(x)).filter(Boolean);
 const rtIsClosed = (t) => ['done', 'cancelled'].includes(statusKey(t));
 
@@ -5831,7 +6048,8 @@ const rtIsClosed = (t) => ['done', 'cancelled'].includes(statusKey(t));
 function rtVal(t, k) {
   if (k === 'status') return statusLabelOf(t);
   if (k === 'queue') { const q = colKey(t) === 'new' ? queueInfoOf(t) : null; return q ? '#' + q.position : ''; }
-  if (rtCol(k) && rtCol(k).private) return t._redacted ? '' : trim(t[k]);
+  if (rtCol(k).type === 'checkbox') return t._redacted ? '' : (trim(t[k]) ? '✓' : '');
+  if (rtCol(k).private) return t._redacted ? '' : trim(t[k]);
   if (k === 'sheetDeadlineWarning') return trim(t.sheetDeadlineWarning) || (trim(t.deadline) && Rules.isOpen(t) ? dlState(t).label : '');
   return trim(t[k]);
 }
@@ -5841,7 +6059,8 @@ function rtSortVal(t, k) {
   if (k === 'status') { const i = (Rules.STATUS_KEYS || []).indexOf(colKey(t)); return i < 0 ? 99 : i; }
   if (k === 'id') return idNum(t.id);
   if (k === 'queue') { const q = colKey(t) === 'new' ? queueInfoOf(t) : null; return q ? q.position : 1e9; }
-  if (k === 'deadline' || k === 'requestDate') return trim(t[k]) || '9999';
+  if (k === 'deadline' || k === 'requestDate' || rtCol(k).type === 'date') return trim(t[k]) || '9999';
+  if (rtCol(k).type === 'number') { const n = parseFloat(t[k]); return isFinite(n) ? n : -1e15; }
   return rtVal(t, k).toLowerCase();
 }
 const RT_TAG_TONES = 8;
@@ -5849,8 +6068,23 @@ function rtTone(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.cha
 const rtTag = (v) => `<span class="rt-tag" data-tone="${rtTone(v)}">${esc(v)}</span>`;
 function rtDate(ymd) { const s = Rules.ymdToDmy(trim(ymd)); return s ? esc(s) : '<span class="dash">—</span>'; }
 
+// hiển thị 1 giá trị theo loại cột (cột tự thêm, hoặc cột hệ thống đã đổi loại)
+function rtTyped(v, type) {
+  const s = trim(v);
+  if (type === 'checkbox') return `<span class="rt-cb ${s ? 'is-on' : ''}" aria-label="${s ? 'Có' : 'Không'}">${s ? '✓' : ''}</span>`;
+  if (!s) return '<span class="dash">—</span>';
+  if (type === 'select') return rtTag(s);
+  if (type === 'multi_select') return rtTags(s).map(rtTag).join('');
+  if (type === 'person') return rtTags(s).map((n) => personHtml(n)).join(' ');
+  if (type === 'date') return rtDate(s);
+  if (type === 'url') return linkChips(s) || esc(s);
+  if (type === 'number') return `<span class="mono">${esc(s)}</span>`;
+  return esc(s.split('\n')[0]);
+}
 function rtCell(t, k) {
   const lock = '<span class="rt-lock" title="Chỉ người order của đơn này mới xem được">Ẩn</span>';
+  const col = rtCol(k);
+  if (col.custom || col.typed) return (t._redacted && col.private) ? lock : rtTyped(t[k], col.type);
   switch (k) {
     case 'id': return idHtml(t);
     case 'name': return `<span class="rt-name"><span class="rt-doc" aria-hidden="true">${t._redacted ? '🔒' : '▤'}</span><span class="rt-name-text">${esc(t.name || '(chưa đặt tên)')}</span>${savingHtml(t)}</span>${isOwnOrder(t) ? '<span class="rt-me">Của tôi</span>' : ''}`;
@@ -5880,7 +6114,7 @@ function rtRows() {
   Object.keys(p.filters || {}).forEach((k) => {
     const vals = p.filters[k] || []; if (!vals.length) return;
     rows = rows.filter((t) => {
-      const v = k === 'assetType' ? rtTags(t.assetType) : [rtVal(t, k)];
+      const v = rtValues(t, k);
       return vals.some((x) => (x === '' ? !v.filter(Boolean).length : v.includes(x)));
     });
   });
@@ -5894,7 +6128,7 @@ function rtRows() {
 }
 function rtCalc(rows, k, kind) {
   if (!kind) return '';
-  const vals = rows.map((t) => (k === 'assetType' ? rtTags(t.assetType).join(', ') : rtVal(t, k)));
+  const vals = rows.map((t) => rtVal(t, k));
   const filled = vals.filter(Boolean).length;
   if (kind === 'count') return 'Đếm ' + rows.length;
   if (kind === 'filled') return 'Có ' + filled;
@@ -5926,7 +6160,7 @@ function rtBodyHtml(rows, cols) {
   if (!p.groupBy) return rows.map((t) => rtRowHtml(t, cols, lefts)).join('');
   const groups = new Map();
   rows.forEach((t) => {
-    const keys = p.groupBy === 'assetType' ? (rtTags(t.assetType).length ? rtTags(t.assetType) : ['']) : [rtVal(t, p.groupBy)];
+    const vs = rtValues(t, p.groupBy).filter(Boolean); const keys = vs.length ? vs : [''];
     keys.forEach((g) => { if (!groups.has(g)) groups.set(g, []); groups.get(g).push(t); });
   });
   const gl = rtCol(p.groupBy).label;
@@ -5985,8 +6219,8 @@ function renderMine(view) {
       <a class="rt-newrow" href="#/new">＋ Đơn mới</a></div></div>`;
     rtRefreshBody();
   }
-  const root = $('#rt-root');
-  root.addEventListener('click', rtOnClick);
+  // 1 listener ở pha capture của document: chạy trước handler chung của view (mở chi tiết đơn)
+  if (!window.__rtBound) { window.__rtBound = true; document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#rt-root') && !e.target.closest('.menu, .modal-wrap')) rtOnClick(e); }, true); }
   const qi = $('#rt-q'); if (qi) qi.addEventListener('input', () => { RT.q = qi.value; rtSave(); rtRefreshBody(); });
 }
 
@@ -5997,7 +6231,7 @@ function rtSetAndRender(mut, bodyOnly) {
 function rtFilterValues(k) {
   const set = new Set(); let hasEmpty = false;
   S.tasks.forEach((t) => {
-    const vals = k === 'assetType' ? rtTags(t.assetType) : [rtVal(t, k)];
+    const vals = rtValues(t, k);
     if (!vals.filter(Boolean).length) hasEmpty = true;
     vals.filter(Boolean).forEach((v) => set.add(v));
   });
@@ -6016,25 +6250,165 @@ function rtFilterItems(k, back) {
   if (cur.length) items.push({ sep: true }, { text: 'Bỏ lọc cột này', fn: () => rtSetAndRender((p) => { delete p.filters[k]; }) });
   return items;
 }
+// ----- Property (cột) — thao tác cấu trúc: chỉ VA / quản trị viên; lưu vào _Config.props cho cả team -----
+function rtNewKey() { const a = 'abcdefghijklmnopqrstuvwxyz0123456789'; let k; do { k = 'cx_' + Array.from({ length: 6 }, () => a[Math.floor(Math.random() * a.length)]).join(''); } while (rtProps().defs[k]); return k; }
+function rtTakenHeaders(exceptKey) {
+  const out = new Set(Object.values(Rules.HEADERS).map((h) => Rules.normText(h)));
+  const d = rtProps().defs; Object.keys(d).forEach((k) => { if (k !== exceptKey && Rules.isCustomKey(k) && d[k].header) out.add(Rules.normText(d[k].header)); });
+  return out;
+}
+function rtUniqueHeader(base, exceptKey) { const taken = rtTakenHeaders(exceptKey); let h = base, n = 2; while (taken.has(Rules.normText(h))) h = base + ' ' + n++; return h; }
+async function rtPropOp(mut, okText) {
+  const r = await saveConfigOp((c) => { c.props = Rules.propsOf(c); c.props = { defs: c.props.defs, order: c.props.order.length ? c.props.order : rtTeamOrder() }; mut(c.props); return c; }, okText);
+  if (r && r.error) toast(r.error, { type: 'error' });
+  renderView({ force: true });
+  return r;
+}
+const rtDefOf = (P, k) => (P.defs[k] = P.defs[k] || {});
+function rtForm(o) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
+    const fld = (f) => {
+      const id = 'rtf-' + f.id;
+      let input;
+      if (f.type === 'select') input = `<select id="${id}">${f.options.map(([v, l]) => `<option value="${esc(v)}" ${String(f.value) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      else if (f.type === 'textarea') input = `<textarea id="${id}" rows="${f.rows || 4}" placeholder="${esc(f.placeholder || '')}">${esc(f.value || '')}</textarea>`;
+      else input = `<input id="${id}" type="${f.type || 'text'}" value="${esc(f.value == null ? '' : f.value)}" placeholder="${esc(f.placeholder || '')}" ${f.type === 'number' ? 'min="0" step="1"' : ''} maxlength="${f.max || 500}">`;
+      return `<div class="field" data-f="${esc(f.id)}"><label for="${id}">${esc(f.label)}</label>${input}${f.hint ? `<div class="field-hint">${esc(f.hint)}</div>` : ''}</div>`;
+    };
+    const m = openModal({
+      title: o.title, desc: o.desc, size: 'sm', top: true,
+      body: `<div class="stack">${o.fields.map(fld).join('')}<div class="field-error" data-general-error hidden role="alert"></div></div>`,
+      foot: `<button type="button" class="btn" data-no>Huỷ</button><button type="button" class="btn btn-primary" data-yes>${esc(o.confirmText || 'Lưu')}</button>`,
+      onCancel: () => finish(null),
+      onMount: (api) => {
+        const el = api.el;
+        const read = () => { const v = {}; o.fields.forEach((f) => { v[f.id] = el.querySelector('#rtf-' + f.id).value; }); return v; };
+        const ok = () => { const v = read(); const errs = o.validate ? o.validate(v) : {}; if (Object.keys(errs).length) { showErrors(el, errs); return; } finish(v); };
+        el.querySelector('[data-yes]').addEventListener('click', ok);
+        el.querySelector('[data-no]').addEventListener('click', () => finish(null));
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); ok(); } });
+        const f0 = el.querySelector('input, select, textarea'); if (f0) { f0.focus(); if (f0.select) f0.select(); }
+      },
+    });
+  });
+}
+const RT_NOTIFY_LABELS = { none: 'Tắt', people: 'Chỉ người được gán (Users only)', requester: 'Người order', assignee: 'Assignee', involved: 'Người order + Assignee' };
+const RT_ACCESS_LABELS = { edit: 'Người order xem & sửa (đơn của họ)', view: 'Người order chỉ xem', hidden: 'Ẩn với người order' };
+const rtTypeOk = (k) => Rules.isCustomKey(k) || Rules.PROP_TYPEABLE.includes(k);
+const rtChoiceType = (k) => ['select', 'multi_select'].includes(rtCol(k).type);
+async function rtRename(k) {
+  const c = rtCol(k); const custom = Rules.isCustomKey(k);
+  const v = await rtForm({ title: 'Đổi tên cột', fields: [{ id: 'label', label: 'Tên cột', value: c.label, max: 60 }],
+    validate: (x) => { const n = trim(x.label); if (!n && custom) return { label: 'Cần nhập tên' }; if (n.length > 60) return { label: 'Tối đa 60 ký tự' }; if (custom && rtTakenHeaders(k).has(Rules.normText(n))) return { label: 'Tên cột bị trùng' }; return {}; } });
+  if (!v) return;
+  rtPropOp((P) => { const d = rtDefOf(P, k); if (custom) d.header = trim(v.label); else if (trim(v.label) && trim(v.label) !== RT_BASE_COLS.find((b) => b.k === k).label) d.label = trim(v.label); else delete d.label; }, 'Đã đổi tên cột');
+}
+async function rtEditOptions(k) {
+  const d = rtProps().defs[k] || {};
+  const v = await rtForm({ title: 'Tuỳ chọn của "' + rtCol(k).label + '"', desc: 'Mỗi dòng 1 lựa chọn. Để trống = cho nhập tự do.', fields: [{ id: 'opts', type: 'textarea', label: 'Tuỳ chọn', rows: 8, value: (d.options || []).join('\n') }] });
+  if (!v) return;
+  const opts = v.opts.split('\n').map((x) => trim(x)).filter((x, i, a) => x && a.indexOf(x) === i);
+  rtPropOp((P) => { const dd = rtDefOf(P, k); if (opts.length) dd.options = opts; else delete dd.options; }, 'Đã lưu tuỳ chọn');
+}
+async function rtEditDefault(k) {
+  const d = rtProps().defs[k] || {};
+  const v = await rtForm({ title: 'Giá trị mặc định', desc: 'Tự điền vào "' + rtCol(k).label + '" khi tạo đơn mới (nếu người order để trống).', fields: [{ id: 'def', label: 'Mặc định', value: d.def || '', placeholder: rtCol(k).type === 'date' ? 'yyyy-mm-dd' : '' }],
+    validate: (x) => { if (!trim(x.def)) return {}; const r = Rules.normPropValue(rtProps(), k, x.def); return r.e ? { def: r.e } : {}; } });
+  if (!v) return;
+  rtPropOp((P) => { const dd = rtDefOf(P, k); if (trim(v.def)) dd.def = trim(v.def); else delete dd.def; }, 'Đã lưu giá trị mặc định');
+}
+function rtLimitItems(k, back) {
+  const cur = Number((rtProps().defs[k] || {}).limit) || 0;
+  return [{ label: 'Giới hạn số giá trị' }, { text: '← Quay lại', submenu: back, noFocusBack: true },
+    ...[0, 1, 2, 3, 5, 10].map((n) => ({ html: `<span class="rt-check">${cur === n ? '✓' : ''}</span>${n ? 'Tối đa ' + n : 'Không giới hạn'}`, fn: () => rtPropOp((P) => { const d = rtDefOf(P, k); if (n) d.limit = n; else delete d.limit; }, 'Đã lưu giới hạn') }))];
+}
+function rtNotifyItems(k, back) {
+  const cur = (rtProps().defs[k] || {}).notify || (k === 'assignee' ? 'people' : 'none');
+  return [{ label: 'Gửi email khi cột này đổi' }, { text: '← Quay lại', submenu: back, noFocusBack: true },
+    ...Rules.PROP_NOTIFY.filter((n) => n !== 'people' || rtCol(k).type === 'person').map((n) => ({ html: `<span class="rt-check">${cur === n ? '✓' : ''}</span>${esc(RT_NOTIFY_LABELS[n])}`, fn: () => rtPropOp((P) => { rtDefOf(P, k).notify = n; }, 'Đã lưu thông báo') }))];
+}
+function rtEditPropItems(k, back) {
+  const t = rtCol(k).type; const d = rtProps().defs[k] || {};
+  const lim = Number(d.limit) || 0;
+  return [{ label: 'Sửa cột: ' + rtCol(k).label }, { text: '← Quay lại', submenu: back, noFocusBack: true },
+    { text: 'Đổi tên…', fn: () => rtRename(k) },
+    ...(rtChoiceType(k) && rtTypeOk(k) ? [{ text: 'Tuỳ chọn… (' + ((d.options || []).length || 'tự do') + ')', fn: () => rtEditOptions(k) }] : []),
+    ...(['multi_select', 'person'].includes(t) ? [{ html: `123 Giới hạn <span class="rt-sub">${lim ? 'Tối đa ' + lim : 'Không giới hạn'}</span>`, submenu: () => rtLimitItems(k, () => rtEditPropItems(k, back)), noFocusBack: true }] : []),
+    { html: `Mặc định <span class="rt-sub">${trim(d.def) ? esc(d.def) : 'Không'}</span>`, disabled: Rules.PROP_NO_DEFAULT.includes(k), title: Rules.PROP_NO_DEFAULT.includes(k) ? 'Cột do hệ thống điền' : '', fn: () => rtEditDefault(k) },
+    { html: `Thông báo <span class="rt-sub">${esc(RT_NOTIFY_LABELS[d.notify || (k === 'assignee' ? 'people' : 'none')])}</span>`, submenu: () => rtNotifyItems(k, () => rtEditPropItems(k, back)), noFocusBack: true },
+  ];
+}
+function rtAccessItems(k, back) {
+  const cur = Rules.propAccess(rtProps(), k);
+  return [{ label: 'Quyền của người order' }, { text: '← Quay lại', submenu: back, noFocusBack: true },
+    ...Rules.PROP_ACCESS.map((a) => ({ html: `<span class="rt-check">${cur === a ? '✓' : ''}</span>${esc(RT_ACCESS_LABELS[a])}`, fn: () => rtPropOp((P) => { rtDefOf(P, k).access = a; }, 'Đã đổi quyền xem') }))];
+}
+function rtTypeItems(k, back) {
+  const cur = rtCol(k).type;
+  return [{ label: 'Đổi loại cột' }, { text: '← Quay lại', submenu: back, noFocusBack: true },
+    ...Rules.PROP_TYPES.map((ty) => ({ html: `<span class="rt-check">${cur === ty ? '✓' : ''}</span>${RT_TYPE_ICON[ty]} ${esc(Rules.PROP_TYPE_LABELS[ty])}`, fn: () => rtPropOp((P) => { const d = rtDefOf(P, k); d.type = ty; if (!['multi_select', 'person'].includes(ty)) delete d.limit; if (trim(d.def) && Rules.normPropValue(P, k, d.def).e) delete d.def; }, 'Đã đổi loại cột') }))];
+}
+async function rtInsert(k, side) {
+  const v = await rtForm({ title: 'Thêm cột ' + (side < 0 ? 'bên trái' : 'bên phải') + ' "' + rtCol(k).label + '"', confirmText: 'Thêm cột',
+    fields: [{ id: 'label', label: 'Tên cột', value: rtUniqueHeader('Cột mới'), max: 60 }, { id: 'type', type: 'select', label: 'Loại', value: 'text', options: Rules.PROP_TYPES.map((t) => [t, RT_TYPE_ICON[t] + ' ' + Rules.PROP_TYPE_LABELS[t]]) }],
+    validate: (x) => { const n = trim(x.label); if (!n) return { label: 'Cần nhập tên' }; if (n.length > 60) return { label: 'Tối đa 60 ký tự' }; if (rtTakenHeaders().has(Rules.normText(n))) return { label: 'Tên cột bị trùng (với cột trong Sheet)' }; return {}; } });
+  if (!v) return;
+  const nk = rtNewKey();
+  await rtPropOp((P) => {
+    P.defs[nk] = { custom: true, header: trim(v.label), type: v.type };
+    const o = P.order.filter((x) => x !== nk); const i = o.indexOf(k);
+    o.splice(i < 0 ? o.length : (side < 0 ? i : i + 1), 0, nk); P.order = o;
+  }, 'Đã thêm cột "' + trim(v.label) + '" (cột mới cũng được tạo trong Google Sheet)');
+  // đặt luôn đúng chỗ trong view hiện tại của mình
+  rtSetAndRender((q) => { const o = q.order.filter((x) => x !== nk); const i = o.indexOf(k); o.splice(i < 0 ? o.length : (side < 0 ? i : i + 1), 0, nk); q.order = o; q.hidden = q.hidden.filter((x) => x !== nk); });
+}
+async function rtDuplicate(k) {
+  const c = rtCol(k); const d = rtProps().defs[k] || {};
+  const nk = rtNewKey();
+  const header = rtUniqueHeader(c.label + ' (bản sao)');
+  const type = Rules.PROP_TYPES.includes(c.type) ? c.type : 'text';
+  await rtPropOp((P) => {
+    P.defs[nk] = Object.assign({ custom: true, header, type, copyFrom: k }, d.options ? { options: d.options.slice() } : {}, d.limit ? { limit: d.limit } : {}, d.notify ? { notify: d.notify } : {}, d.access ? { access: d.access } : {});
+    const o = P.order.filter((x) => x !== nk); const i = o.indexOf(k); o.splice(i < 0 ? o.length : i + 1, 0, nk); P.order = o;
+  }, 'Đã nhân bản cột (kèm dữ liệu)');
+  await loadAll();
+  rtSetAndRender((q) => { const o = q.order.filter((x) => x !== nk); const i = o.indexOf(k); o.splice(i < 0 ? o.length : i + 1, 0, nk); q.order = o; });
+}
+async function rtDelete(k) {
+  const ok = await confirmDialog({ title: 'Xoá cột "' + rtCol(k).label + '"?', desc: 'Cột sẽ ẩn khỏi app với cả team. Dữ liệu vẫn giữ nguyên trong Google Sheet và có thể khôi phục trong ⚙ › Cột đã xoá.', confirmText: 'Xoá cột', danger: true });
+  if (ok) rtPropOp((P) => { rtDefOf(P, k).deleted = true; }, 'Đã xoá cột (dữ liệu vẫn còn trong Sheet)');
+}
 function rtColMenu(anchor, k) {
   const p = rtPrefs(); const c = rtCol(k);
   const order = p.order; const i = order.indexOf(k);
+  const ed = rtCanEditProps();
   const main = () => [
-    { label: c.label },
-    { text: '↑ Sắp xếp tăng dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'asc'; }) },
-    { text: '↓ Sắp xếp giảm dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'desc'; }) },
-    ...(p.sortKey === k ? [{ text: 'Bỏ sắp xếp', fn: () => rtSetAndRender((q) => { q.sortKey = ''; }) }] : []),
-    { sep: true },
-    { text: 'Lọc…', submenu: () => rtFilterItems(k, main), noFocusBack: true },
-    { text: p.groupBy === k ? 'Bỏ nhóm' : 'Nhóm theo cột này', fn: () => rtSetAndRender((q) => { q.groupBy = q.groupBy === k ? '' : k; }) },
-    { text: 'Tính toán…', submenu: () => rtCalcItems(k, main), noFocusBack: true },
-    { sep: true },
-    { text: p.freeze === k ? 'Bỏ cố định' : 'Cố định đến cột này', fn: () => rtSetAndRender((q) => { q.freeze = q.freeze === k ? '' : k; }) },
-    { text: 'Ẩn cột', disabled: k === 'name', fn: () => rtSetAndRender((q) => { q.hidden = q.hidden.concat([k]); if (q.freeze === k) q.freeze = ''; }) },
-    { text: (p.wrap.includes(k) ? '✓ ' : '') + 'Xuống dòng', fn: () => rtSetAndRender((q) => { q.wrap = q.wrap.includes(k) ? q.wrap.filter((x) => x !== k) : q.wrap.concat([k]); }) },
+    { label: c.label + (c.custom ? ' · ' + (Rules.PROP_TYPE_LABELS[c.type] || '') : '') },
+    ...(ed ? [
+      { text: '⚙ Sửa cột (Edit property)…', submenu: () => rtEditPropItems(k, main), noFocusBack: true },
+      { text: '🔒 Quyền xem (Property access)…', disabled: Rules.PROP_NO_ACCESS.includes(k), title: Rules.PROP_NO_ACCESS.includes(k) ? 'Người order luôn thấy cột này' : '', submenu: () => rtAccessItems(k, main), noFocusBack: true },
+      { text: '⇄ Đổi loại (Change type)…', disabled: !rtTypeOk(k), title: rtTypeOk(k) ? '' : 'Cột hệ thống có logic riêng — không đổi loại được', submenu: () => rtTypeItems(k, main), noFocusBack: true },
+      { sep: true }] : []),
+    { text: '⏷ Lọc…', submenu: () => rtFilterItems(k, main), noFocusBack: true },
+    { text: '⇅ Sắp xếp…', submenu: () => [{ label: 'Sắp xếp' }, { text: '← Quay lại', submenu: main, noFocusBack: true },
+      { text: '↑ Tăng dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'asc'; }) },
+      { text: '↓ Giảm dần', fn: () => rtSetAndRender((q) => { q.sortKey = k; q.sortDir = 'desc'; }) },
+      ...(p.sortKey === k ? [{ text: 'Bỏ sắp xếp', fn: () => rtSetAndRender((q) => { q.sortKey = ''; }) }] : [])], noFocusBack: true },
+    { text: (p.groupBy === k ? '✓ ' : '') + '▦ Nhóm theo cột này', fn: () => rtSetAndRender((q) => { q.groupBy = q.groupBy === k ? '' : k; }) },
+    { text: 'Σ Tính toán…', submenu: () => rtCalcItems(k, main), noFocusBack: true },
+    { text: (p.freeze === k ? '✓ ' : '') + '📌 Cố định đến cột này', fn: () => rtSetAndRender((q) => { q.freeze = q.freeze === k ? '' : k; }) },
+    { text: '🙈 Ẩn cột', disabled: k === 'name', fn: () => rtSetAndRender((q) => { q.hidden = q.hidden.concat([k]); if (q.freeze === k) q.freeze = ''; }) },
+    { text: (p.wrap.includes(k) ? '✓ ' : '') + '↵ Xuống dòng', fn: () => rtSetAndRender((q) => { q.wrap = q.wrap.includes(k) ? q.wrap.filter((x) => x !== k) : q.wrap.concat([k]); }) },
     { sep: true },
     { text: '← Chuyển sang trái', disabled: i <= 0, fn: () => rtSetAndRender((q) => { const o = q.order; [o[i - 1], o[i]] = [o[i], o[i - 1]]; }) },
     { text: 'Chuyển sang phải →', disabled: i >= order.length - 1, fn: () => rtSetAndRender((q) => { const o = q.order; [o[i + 1], o[i]] = [o[i], o[i + 1]]; }) },
+    ...(ed ? [{ sep: true },
+      { text: '⇤ Chèn cột bên trái', fn: () => rtInsert(k, -1) },
+      { text: '⇥ Chèn cột bên phải', fn: () => rtInsert(k, 1) },
+      { text: '⧉ Nhân bản cột', fn: () => rtDuplicate(k) },
+      { text: '🗑 Xoá cột', disabled: Rules.PROP_NO_DELETE.includes(k), title: Rules.PROP_NO_DELETE.includes(k) ? 'Cột bắt buộc' : '', fn: () => rtDelete(k) }] : []),
   ];
   openMenu(anchor, main);
 }
@@ -6050,12 +6424,14 @@ function rtPropsMenu(anchor) {
   openMenu(anchor, () => [{ label: 'Cột hiển thị' }, ...p.order.map((k) => {
     const on = !p.hidden.includes(k);
     return { html: `<span class="rt-check">${on ? '✓' : ''}</span>${esc(rtCol(k).label)}`, disabled: k === 'name', fn: () => rtSetAndRender((q) => { q.hidden = on ? q.hidden.concat([k]) : q.hidden.filter((x) => x !== k); }) };
-  }), { sep: true }, { text: 'Khôi phục mặc định', fn: () => rtSetAndRender((q) => { const d2 = RT_DEFAULT(q.tab); Object.keys(q).forEach((x) => delete q[x]); Object.assign(q, d2); }) }]);
+  }), { sep: true }, { text: 'Khôi phục mặc định', fn: () => rtSetAndRender((q) => { const d2 = RT_DEFAULT(q.tab); Object.keys(q).forEach((x) => delete q[x]); Object.assign(q, d2); }) },
+  ...(rtCanEditProps() ? (() => { const P = rtProps(); const del = Object.keys(P.defs).filter((k) => P.defs[k].deleted); return del.length ? [{ sep: true }, { label: 'Cột đã xoá (dữ liệu vẫn trong Sheet)' }, ...del.map((k) => ({ text: '↺ Khôi phục "' + (P.defs[k].header || P.defs[k].label || (RT_BASE_COLS.find((b) => b.k === k) || {}).label || k) + '"', fn: () => rtPropOp((Q) => { delete rtDefOf(Q, k).deleted; }, 'Đã khôi phục cột') }))] : []; })() : []),
+  ...(rtCanEditProps() ? [{ sep: true }, { text: '＋ Thêm cột mới', fn: () => rtInsert(p.order[p.order.length - 1], 1) }] : [])]);
 }
 function rtFiltersMenu(anchor) {
   const p = rtPrefs();
   openMenu(anchor, function main() {
-    return [{ label: 'Lọc theo cột' }, ...['team', 'project', 'assetType', 'priority', 'requester', 'assignee', 'status', 'sheetDeadlineWarning'].map((k) => ({ text: rtCol(k).label + ((p.filters[k] || []).length ? ` (${p.filters[k].length})` : ''), submenu: () => rtFilterItems(k, main), noFocusBack: true })),
+    return [{ label: 'Lọc theo cột' }, ...rtAllCols().map((c) => c.k).filter((k) => !['id', 'name', 'description', 'notes', 'outputSpec'].includes(k)).map((k) => ({ text: rtCol(k).label + ((p.filters[k] || []).length ? ` (${p.filters[k].length})` : ''), submenu: () => rtFilterItems(k, main), noFocusBack: true })),
       { sep: true }, { text: 'Xoá mọi bộ lọc', disabled: !Object.values(p.filters).some((v) => v.length) && !p.mine && !p.q, fn: () => rtSetAndRender((q) => { q.filters = {}; q.mine = false; q.q = ''; }) }];
   });
 }
@@ -6080,7 +6456,35 @@ function rtOnClick(e) {
     else if (a === 'props') rtPropsMenu(act);
     return;
   }
+  const cell = t.closest('.rt-cell[data-col]');
+  if (cell && !t.closest('a')) {
+    const k = cell.dataset.col; const task = getTask(cell.closest('.rt-row').dataset.id);
+    if (task && rtCol(k).custom && rtCanEditCell(task, k)) { e.stopPropagation(); rtEditCell(task, k); return; }
+  }
   const locked = t.closest('.rt-row.is-locked'); if (locked && !t.closest('a')) { e.stopPropagation(); toast('Đơn của người khác — chỉ xem được dòng tóm tắt'); }
+}
+
+// ----- sửa giá trị cột tự thêm ngay trong bảng -----
+function rtCanEditCell(t, k) {
+  if (t._redacted || t._tmp) return false;
+  if (isVA()) return true;
+  return isOwnOrder(t) && colKey(t) === 'new' && Rules.propAccess(rtProps(), k) === 'edit';
+}
+async function rtEditCell(t, k) {
+  const c = rtCol(k); const d = rtProps().defs[k] || {}; const cur = trim(t[k]);
+  let f;
+  if (c.type === 'select') f = { id: 'v', type: 'select', label: c.label, value: cur, options: [['', '— Trống —']].concat(((d.options || []).length ? d.options : (cur ? [cur] : [])).map((o) => [o, o])) };
+  else if (c.type === 'checkbox') f = { id: 'v', type: 'select', label: c.label, value: cur ? 'TRUE' : '', options: [['TRUE', '✓ Có'], ['', 'Không']] };
+  else if (c.type === 'date') f = { id: 'v', type: 'date', label: c.label, value: cur };
+  else if (c.type === 'number') f = { id: 'v', type: 'number', label: c.label, value: cur };
+  else if (c.type === 'text') f = { id: 'v', type: 'textarea', label: c.label, value: cur };
+  else f = { id: 'v', label: c.label, value: cur, hint: c.type === 'multi_select' ? 'Cách nhau bằng dấu phẩy' + ((d.options || []).length ? '. Chọn trong: ' + d.options.join(', ') : '') + (d.limit ? ' · tối đa ' + d.limit : '')
+    : c.type === 'person' ? 'Tên thành viên, cách nhau bằng dấu phẩy' + (d.limit ? ' · tối đa ' + d.limit : '') : c.type === 'url' ? 'Bắt đầu bằng https://' : '' };
+  const v = await rtForm({ title: t.id + ' · ' + c.label, fields: [f], validate: (x) => { const r = Rules.normPropValue(rtProps(), k, x.v); return r.e ? { v: r.e } : {}; } });
+  if (!v) return;
+  const nv = Rules.normPropValue(rtProps(), k, v.v).v;
+  if (nv === cur) return;
+  runUpdate(t.id, { [k]: nv }, { [k]: cur });
 }
 
 // ============================================================================
@@ -8361,7 +8765,7 @@ const NAV_ICONS = {
 };
 function navItems() {
   return isVA()
-    ? [['queue', 'Hàng đợi'], ['board', 'Kanban'], ['list', 'Danh sách'], ['overview', 'Tổng quan'], ['ai', 'Trợ lý AI'], ['settings', 'Cài đặt']]
+    ? [['queue', 'Hàng đợi'], ['mine', 'Bảng đơn'], ['board', 'Kanban'], ['list', 'Danh sách'], ['overview', 'Tổng quan'], ['ai', 'Trợ lý AI'], ['settings', 'Cài đặt']]
     : [['mine', 'Bảng đơn'], ['new', 'Tạo đơn'], ['settings', 'Cài đặt']];
 }
 function renderNav() {

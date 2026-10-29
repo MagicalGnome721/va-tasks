@@ -171,9 +171,10 @@ var Rules = (function () {
     dueSoonDays: 2,
     pollSeconds: 60,
     version: 1,
-    updatedAt: ''
+    updatedAt: '',
+    props: { defs: {}, order: [] }
   };
-  var CONFIG_KEYS = ['teams', 'projects', 'assetTypes', 'priorities', 'members', 'dueSoonDays', 'pollSeconds', 'version', 'updatedAt'];
+  var CONFIG_KEYS = ['teams', 'projects', 'assetTypes', 'priorities', 'members', 'dueSoonDays', 'pollSeconds', 'props', 'version', 'updatedAt'];
 
   // ---------- helpers ----------
   function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
@@ -432,9 +433,17 @@ var Rules = (function () {
     if (ownerUser && trim(ownerUser.name) && out.indexOf(trim(ownerUser.name)) < 0) out.push(trim(ownerUser.name));
     return out;
   }
-  function visibleTasks(user, tasks) {
+  function visibleTasks(user, tasks, props) {
     if (!user) return [];
     if (isVa(user) || isSystem(user)) return (tasks || []).slice();
+    // cột bị đặt "Ẩn với người order" (Property access) bị cắt cả trên đơn của chính họ
+    var hidden = Object.keys(propsOf(props).defs).filter(function (k) { return propAccess(props, k) === 'hidden'; });
+    if (hidden.length) {
+      return (tasks || []).map(function (t) {
+        if (!isOwnTask(user, t)) return publicTask(t);
+        var c = clone(t); hidden.forEach(function (k) { delete c[k]; }); return c;
+      });
+    }
     // Người order thấy TOÀN BỘ hàng đợi, nhưng đơn của người khác chỉ còn dòng tóm tắt
     // (server cắt trường chi tiết trước khi trả về — xem PUBLIC_TASK_KEYS).
     return (tasks || []).map(function (t) { return isOwnTask(user, t) ? t : publicTask(t); });
@@ -644,7 +653,13 @@ var Rules = (function () {
     if (skip) SERVER_KEYS.forEach(function (k) { if (k !== 'id') delete changes[k]; });
     var keys = Object.keys(changes);
     // 1. key validity
+    var props = ctx.props || null, liveCx = liveCustomKeys(props);
     keys.forEach(function (k) {
+      if (isCustomKey(k) && liveCx.indexOf(k) >= 0) {
+        var nv = normPropValue(props, k, changes[k]);
+        if (nv.e) { var fe = {}; fe[k] = nv.e; throw err('VALIDATION', 'Dữ liệu không hợp lệ: ' + nv.e, { fields: fe }); }
+        changes[k] = nv.v; return;
+      }
       if (WRITE_KEYS.indexOf(k) < 0 || (SERVER_KEYS.indexOf(k) >= 0 && !sys)) {
         var f = {}; f[k] = 'Trường không được phép sửa';
         throw err('VALIDATION', 'Dữ liệu không hợp lệ: Trường không được phép sửa (' + k + ')', { fields: f });
@@ -682,8 +697,22 @@ var Rules = (function () {
     Object.keys(changes).forEach(function (k) { if (k !== 'status' && !strictEqual(changes[k], current[k])) fieldChanges[k] = changes[k]; });
     // 4. permissions
     if (!sys) {
-      var pe = can(user, 'edit', current, fieldChanges);
+      var builtinChanges = {}, customChanges = [];
+      Object.keys(fieldChanges).forEach(function (k) { if (isCustomKey(k)) customChanges.push(k); else builtinChanges[k] = fieldChanges[k]; });
+      var pe = can(user, 'edit', current, builtinChanges);
       if (!pe.ok) throw forbidden(pe.reason);
+      if (!va) {
+        var own = isOwnTask(user, current);
+        Object.keys(fieldChanges).forEach(function (k) {
+          if (propAccess(props, k) !== 'edit') throw forbidden('Bạn không thể sửa "' + (propDef(props, k).label || propDef(props, k).header || HEADERS[k] || k) + '"');
+          if (isCustomKey(k) && (!own || !isNewLike(current.status))) throw forbidden('Chỉ sửa được đơn của bạn khi còn ở trạng thái Mới');
+        });
+        // giới hạn số giá trị (Limit) cho cột hệ thống dạng chọn nhiều / người
+        Object.keys(builtinChanges).forEach(function (k) {
+          var lim = Number(propDef(props, k).limit) || 0;
+          if (lim > 0 && splitMulti(builtinChanges[k]).length > lim) { var fl = {}; fl[k] = 'Tối đa ' + lim + ' giá trị'; throw err('VALIDATION', 'Dữ liệu không hợp lệ: Tối đa ' + lim + ' giá trị', { fields: fl }); }
+        });
+      }
       if (has(fieldChanges, 'size')) { var ps = can(user, 'setSize', current); if (!ps.ok) throw forbidden(ps.reason); }
       if (has(fieldChanges, 'holdReason')) { var ph = can(user, 'setHold', current); if (!ph.ok) throw forbidden(ph.reason); }
       if (has(fieldChanges, 'priority')) { var pp = can(user, 'setPriority', current); if (!pp.ok) throw forbidden(pp.reason); }
@@ -753,7 +782,8 @@ var Rules = (function () {
       merged.notes = appendNote(merged.notes, noteLine(ctx.todayDmy, ctx.hhmm, actor, 'Tiếp tục', 'Bỏ tạm dừng'));
     }
     // 7. diff + logs
-    var changedKeys = WRITE_KEYS.filter(function (k) { return k !== 'id' && !strictEqual(merged[k], current[k]); });
+    var changedKeys = WRITE_KEYS.filter(function (k) { return k !== 'id' && !strictEqual(merged[k], current[k]); })
+      .concat(liveCx.filter(function (k) { return has(merged, k) && str(merged[k]) !== str(current[k]); }));
     var logs = [];
     changedKeys.forEach(function (k) {
       if (k === 'status') return;
@@ -779,7 +809,8 @@ var Rules = (function () {
 
   // ctx = { today, actor, user, priorities?, aiResult? } — requester/requesterEmail always come from ctx.user.
   function buildNewTask(input, ctx, existingIds) {
-    input = input || {}; ctx = ctx || {};
+    ctx = ctx || {};
+    input = applyPropDefaults(input || {}, ctx.props);
     var user = ctx.user || null;
     var va = isVa(user);
     var ai = ctx.aiResult || null;
@@ -824,6 +855,14 @@ var Rules = (function () {
     t.holdReason = '';
     t.parentId = '';
     t.sheetDeadlineWarning = '';
+    var cxErr = {};
+    liveCustomKeys(ctx.props).forEach(function (k) {
+      if (!has(input, k) || trim(input[k]) === '') return;
+      if (!va && propAccess(ctx.props, k) !== 'edit' && trim(input[k]) !== trim(propDef(ctx.props, k).def)) return;
+      var nv = normPropValue(ctx.props, k, input[k]);
+      if (nv.e) cxErr[k] = nv.e; else t[k] = nv.v;
+    });
+    if (Object.keys(cxErr).length) throw validationError(cxErr);
     t.id = nextId(existingIds);
     return t;
   }
@@ -1228,6 +1267,129 @@ var Rules = (function () {
     catch (e) { throw err('AI_BAD_OUTPUT', 'AI trả kết quả không phải JSON'); }
   }
 
+  // ---------- Properties (cột) kiểu Notion ----------
+  // config.props = { defs: { <key>: def }, order: [keys] }   (order = thứ tự cột chung của team)
+  // def = { label, type, options[], limit, def (giá trị mặc định), notify, access, deleted,
+  //         custom:true + header (chỉ cột tự thêm: key cx_xxxxxx, header = tên cột trong Sheet),
+  //         copyFrom (tạm: khi Duplicate, server chép dữ liệu cột nguồn rồi xoá) }
+  var PROP_TYPES = ['text', 'number', 'select', 'multi_select', 'person', 'date', 'url', 'checkbox'];
+  var PROP_TYPE_LABELS = { text: 'Văn bản', number: 'Số', select: 'Chọn 1', multi_select: 'Chọn nhiều', person: 'Người', date: 'Ngày', url: 'Link', checkbox: 'Hộp tick' };
+  var BUILTIN_PROP_TYPES = { id: 'id', team: 'select', project: 'select', assetType: 'multi_select', name: 'title', description: 'text',
+    briefLink: 'url', outputSpec: 'text', quantity: 'number', priority: 'select', requester: 'person', assignee: 'person',
+    requestDate: 'date', deadline: 'date', status: 'status', progress: 'number', deliveryLink: 'url', notes: 'text', sheetDeadlineWarning: 'text' };
+  var PROP_KEYS = Object.keys(BUILTIN_PROP_TYPES);
+  // cột hệ thống: được đổi loại hiển thị không? (các cột có logic riêng thì khoá)
+  var PROP_TYPEABLE = ['team', 'project', 'assetType', 'description', 'briefLink', 'outputSpec', 'deliveryLink', 'notes'];
+  var PROP_NO_DELETE = ['id', 'name', 'status'];
+  var PROP_NO_ACCESS = ['id', 'name', 'status'];          // người order luôn thấy
+  var PROP_NO_DEFAULT = ['id', 'name', 'status', 'requester', 'requestDate', 'progress', 'sheetDeadlineWarning', 'assignee', 'deliveryLink'];
+  var PROP_NOTIFY = ['none', 'people', 'requester', 'assignee', 'involved'];
+  var PROP_ACCESS = ['edit', 'view', 'hidden'];
+  function isCustomKey(k) { return /^cx_[a-z0-9]{6}$/.test(str(k)); }
+  function propsOf(cfgOrProps) {
+    var p = cfgOrProps && cfgOrProps.defs ? cfgOrProps : (cfgOrProps && cfgOrProps.props) || null;
+    return { defs: (p && p.defs) || {}, order: (p && p.order) || [] };
+  }
+  function propDef(props, k) { return propsOf(props).defs[k] || {}; }
+  function propType(props, k) {
+    var d = propDef(props, k);
+    if (isCustomKey(k)) return PROP_TYPES.indexOf(d.type) >= 0 ? d.type : 'text';
+    if (PROP_TYPEABLE.indexOf(k) >= 0 && PROP_TYPES.indexOf(d.type) >= 0) return d.type;
+    return BUILTIN_PROP_TYPES[k] || 'text';
+  }
+  function liveCustomKeys(props) {
+    var defs = propsOf(props).defs;
+    return Object.keys(defs).filter(function (k) { return isCustomKey(k) && defs[k] && defs[k].custom && !defs[k].deleted; });
+  }
+  function propAccess(props, k) {
+    var a = propDef(props, k).access;
+    if (PROP_NO_ACCESS.indexOf(k) < 0 && PROP_ACCESS.indexOf(a) >= 0) return a;
+    if (isCustomKey(k)) return 'edit';
+    return REQUESTER_EDIT_KEYS.indexOf(k) >= 0 ? 'edit' : 'view';
+  }
+  function splitMulti(v) { return str(v).split(/[,;\n]/).map(function (x) { return trim(x); }).filter(Boolean); }
+  // chuẩn hoá + kiểm tra 1 giá trị theo loại cột; trả { v } hoặc { e }
+  function normPropValue(props, k, v) {
+    var d = propDef(props, k), t = propType(props, k);
+    if (v === null || v === undefined) v = '';
+    if (t === 'checkbox') return { v: (v === true || /^(true|1|x|yes|có|✓)$/i.test(trim(v))) ? 'TRUE' : '' };
+    var s = trim(v);
+    if (!s) return { v: '' };
+    if (t === 'number') { var n = Number(s.replace(',', '.')); return isFinite(n) ? { v: String(n) } : { e: 'Cần nhập số' }; }
+    if (t === 'date') { var y = isValidYmd(s) ? s : dmyToYmd(s); return y ? { v: y } : { e: 'Ngày không hợp lệ' }; }
+    if (t === 'url') { var ls = splitLinks(s); for (var i = 0; i < ls.length; i++) if (!/^https?:\/\//i.test(ls[i])) return { e: 'Link phải bắt đầu bằng http(s)://' }; return { v: s }; }
+    if (t === 'select' || t === 'multi_select' || t === 'person') {
+      var vals = t === 'select' ? [s] : splitMulti(s);
+      var opts = Array.isArray(d.options) ? d.options : [];
+      if (isCustomKey(k) && t !== 'person' && opts.length) {
+        for (var j = 0; j < vals.length; j++) if (!opts.some(function (o) { return normText(o) === normText(vals[j]); })) return { e: '"' + vals[j] + '" không có trong tuỳ chọn' };
+      }
+      var lim = Number(d.limit) || 0;
+      if (lim > 0 && vals.length > lim) return { e: 'Tối đa ' + lim + ' giá trị' };
+      return { v: vals.join(', ') };
+    }
+    if (s.length > 5000) return { e: 'Tối đa 5000 ký tự' };
+    return { v: str(v).replace(/\s+$/, '') };
+  }
+  function validateProps(p) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return 'Cấu hình cột không hợp lệ';
+    var defs = p.defs || {}, order = p.order || [];
+    if (typeof defs !== 'object' || Array.isArray(defs) || !Array.isArray(order)) return 'Cấu hình cột không hợp lệ';
+    var headers = {};
+    Object.keys(HEADERS).forEach(function (k) { headers[normText(HEADERS[k])] = k; });
+    var keys = Object.keys(defs);
+    if (keys.length > 120) return 'Quá nhiều cột';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i], d = defs[k];
+      if (!d || typeof d !== 'object') return 'Cột không hợp lệ: ' + k;
+      var custom = isCustomKey(k);
+      if (!custom && PROP_KEYS.indexOf(k) < 0) return 'Cột không hợp lệ: ' + k;
+      if (has(d, 'label') && (typeof d.label !== 'string' || trim(d.label).length > 60)) return 'Tên cột tối đa 60 ký tự';
+      if (has(d, 'type') && d.type !== '' && PROP_TYPES.indexOf(d.type) < 0) return 'Loại cột không hợp lệ';
+      if (has(d, 'type') && d.type && !custom && PROP_TYPEABLE.indexOf(k) < 0) return 'Không đổi loại được cột hệ thống "' + (HEADERS[k] || k) + '"';
+      if (has(d, 'options') && (!Array.isArray(d.options) || d.options.length > 60 || d.options.some(function (o) { return typeof o !== 'string' || !trim(o) || trim(o).length > 60; }))) return 'Tuỳ chọn không hợp lệ (tối đa 60 mục, mỗi mục ≤ 60 ký tự)';
+      if (has(d, 'limit') && !(Number(d.limit) >= 0 && Number(d.limit) <= 50 && Math.floor(Number(d.limit)) === Number(d.limit))) return 'Giới hạn phải là số nguyên 0–50';
+      if (has(d, 'notify') && PROP_NOTIFY.indexOf(d.notify) < 0) return 'Kiểu thông báo không hợp lệ';
+      if (has(d, 'access') && d.access && (PROP_ACCESS.indexOf(d.access) < 0 || PROP_NO_ACCESS.indexOf(k) >= 0)) return 'Quyền xem không hợp lệ cho cột này';
+      if (d.deleted && PROP_NO_DELETE.indexOf(k) >= 0) return 'Không xoá được cột "' + (HEADERS[k] || k) + '"';
+      if (has(d, 'def') && trim(d.def) && PROP_NO_DEFAULT.indexOf(k) >= 0) return 'Cột này không đặt giá trị mặc định';
+      if (has(d, 'def') && trim(d.def)) { var nv = normPropValue(p, k, d.def); if (nv.e) return 'Giá trị mặc định: ' + nv.e; }
+      if (custom) {
+        if (!d.custom) return 'Cột không hợp lệ: ' + k;
+        var h = normText(d.header);
+        if (!h || trim(d.header).length > 60) return 'Tên cột cần 1–60 ký tự';
+        if (headers[h] && headers[h] !== k) return 'Tên cột "' + trim(d.header) + '" bị trùng';
+        headers[h] = k;
+        if (has(d, 'copyFrom') && d.copyFrom && !(isCustomKey(d.copyFrom) || PROP_KEYS.indexOf(d.copyFrom) >= 0)) return 'Cột nguồn không hợp lệ';
+      }
+    }
+    for (var j = 0; j < order.length; j++) if (!(isCustomKey(order[j]) || PROP_KEYS.indexOf(order[j]) >= 0)) return 'Thứ tự cột không hợp lệ';
+    return null;
+  }
+  // áp giá trị mặc định cho đơn mới (chỉ ô đang trống)
+  function applyPropDefaults(input, props) {
+    var out = clone(input || {}); var defs = propsOf(props).defs;
+    Object.keys(defs).forEach(function (k) {
+      var d = defs[k]; if (!d || d.deleted || !trim(d.def) || PROP_NO_DEFAULT.indexOf(k) >= 0) return;
+      if (isCustomKey(k) && !d.custom) return;
+      if (out[k] === undefined || out[k] === null || trim(out[k]) === '') out[k] = d.def;
+    });
+    return out;
+  }
+  // ai được nhận thông báo khi cột k của đơn thay đổi
+  function propNotifyTargets(props, k, before, after) {
+    var mode = propDef(props, k).notify || (k === 'assignee' ? 'people' : 'none');
+    var names = [], emails = [];
+    if (mode === 'none') return { names: names, emails: emails };
+    if (mode === 'people') {
+      var t = propType(props, k);
+      if (t === 'person') { var old = splitMulti(before && before[k]).map(normText); splitMulti(after && after[k]).forEach(function (n) { if (old.indexOf(normText(n)) < 0) names.push(n); }); }
+    }
+    if (mode === 'requester' || mode === 'involved') emails.push(normEmail(after && after.requesterEmail));
+    if (mode === 'assignee' || mode === 'involved') names.push(trim(after && after.assignee));
+    return { names: names.filter(Boolean), emails: emails.filter(Boolean) };
+  }
+
   // ---------- config ----------
   function mergeConfig(partial) {
     var c = clone(DEFAULT_CONFIG);
@@ -1239,6 +1401,9 @@ var Rules = (function () {
         return { name: trim(m.name), email: normEmail(m.email), team: trim(m.team), isArtist: m.isArtist === true, active: m.active !== false };
       });
     }
+    if (!c.props || typeof c.props !== 'object' || Array.isArray(c.props)) c.props = { defs: {}, order: [] };
+    if (!c.props.defs || typeof c.props.defs !== 'object' || Array.isArray(c.props.defs)) c.props.defs = {};
+    if (!Array.isArray(c.props.order)) c.props.order = [];
     return c;
   }
   function validateConfig(c) {
@@ -1273,6 +1438,7 @@ var Rules = (function () {
     var d = Number(c.dueSoonDays);
     if (!(isFinite(d) && Math.floor(d) === d && d >= 0 && d <= 30)) return 'Số ngày phải là số nguyên 0–30';
     if ([0, 30, 60, 300].indexOf(Number(c.pollSeconds)) < 0) return 'Chu kỳ làm mới không hợp lệ';
+    if (c.props) { var pm = validateProps(c.props); if (pm) return pm; }
     return null;
   }
 
@@ -1502,7 +1668,11 @@ var Rules = (function () {
     roleOf: roleOf, systemUser: systemUser, vaNamesOf: vaNamesOf, isOwnTask: isOwnTask,
     can: can, allowedTransitions: allowedTransitions, transitionNeeds: transitionNeeds,
     visibleTasks: visibleTasks, sanitizeConfigFor: sanitizeConfigFor,
-    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
+    publicTask: publicTask, PUBLIC_TASK_KEYS: PUBLIC_TASK_KEYS,
+    PROP_TYPES: PROP_TYPES, PROP_TYPE_LABELS: PROP_TYPE_LABELS, BUILTIN_PROP_TYPES: BUILTIN_PROP_TYPES, PROP_TYPEABLE: PROP_TYPEABLE,
+    PROP_NO_DELETE: PROP_NO_DELETE, PROP_NO_ACCESS: PROP_NO_ACCESS, PROP_NO_DEFAULT: PROP_NO_DEFAULT, PROP_NOTIFY: PROP_NOTIFY, PROP_ACCESS: PROP_ACCESS,
+    isCustomKey: isCustomKey, propsOf: propsOf, propDef: propDef, propType: propType, propAccess: propAccess, liveCustomKeys: liveCustomKeys,
+    normPropValue: normPropValue, validateProps: validateProps, applyPropDefaults: applyPropDefaults, propNotifyTargets: propNotifyTargets, splitMulti: splitMulti, effectivePriority: effectivePriority, queueSort: queueSort, queueInfo: queueInfo, myWorkSort: myWorkSort,
     autoApproveState: autoApproveState, autoApproveDate: autoApproveDate, annotateTasks: annotateTasks,
     planSplit: planSplit, splitChildren: splitChildren, parentCompletion: parentCompletion,
     parentCancelCascade: parentCancelCascade, parentReopenPlan: parentReopenPlan,
@@ -1522,6 +1692,7 @@ var SESSION_ACTIONS_ = ['me', 'logout', 'list', 'getConfig', 'log', 'create', 'u
   'saveConfig', 'split', 'aiIntake', 'aiAssist', 'buddyChat', 'adminGet', 'adminSave', 'adminTestAi'];
 
 function doGet(e) {
+  CFG_MEMO_ = null;
   return respond_(function () {
     var p = (e && e.parameter) || {};
     if (String(p.action || '') === 'ping') return { data: actionPing_() };
@@ -1531,6 +1702,7 @@ function doGet(e) {
 
 function doPost(e) {
   PENDING_MAIL_ = [];
+  CFG_MEMO_ = null;
   LOCK_DEPTH_ = 0;
   var out = respond_(function () {
     var body;
@@ -1667,6 +1839,7 @@ function ctxFor_(user, cfg) {
     todayDmy: Utilities.formatDate(now, tz, 'dd/MM/yyyy'),
     hhmm: Utilities.formatDate(now, tz, 'HH:mm'),
     priorities: cfg.priorities,
+    props: cfg.props,
     vaNames: Rules.vaNamesOf(cfg, Rules.roleOf(ownerEmail_(), cfg, ownerEmail_()))
   };
 }
@@ -2048,12 +2221,25 @@ function headerMap_(sheet) {
     var k = HEADER_KEYS_[Rules.normText(h)];
     if (k && !map[k]) map[k] = i + 1;
   });
+  // cột tự thêm (Insert property): header lấy từ _Config.props
+  var custom = [];
+  try {
+    var pc = cfgMemo_();
+    Rules.liveCustomKeys(pc && pc.props).forEach(function (k) {
+      var h = Rules.normText(pc.props.defs[k].header);
+      headers.forEach(function (hh, i) { if (!map[k] && Rules.normText(hh) === h) { map[k] = i + 1; } });
+      if (map[k]) custom.push(k);
+    });
+  } catch (e) { /* no config yet */ }
   if (!map.id) throw Rules.err('HEADER_MISSING', 'Không tìm thấy cột bắt buộc: ID');
   if (!map.name) throw Rules.err('HEADER_MISSING', 'Không tìm thấy cột bắt buộc: Tên yêu cầu');
   var warnings = [];
   Object.keys(Rules.HEADERS).forEach(function (k) { if (!map[k] && k !== 'progress') warnings.push('Thiếu cột: ' + Rules.HEADERS[k]); });
-  return { map: map, headers: headers, lastCol: lc, warnings: warnings };
+  return { map: map, headers: headers, lastCol: lc, warnings: warnings, custom: custom };
 }
+// _Config đọc 1 lần cho mỗi request (headerMap_ gọi nhiều lần); writeConfig_ xoá memo
+var CFG_MEMO_ = null;
+function cfgMemo_() { if (CFG_MEMO_ === null) CFG_MEMO_ = readConfigRaw_() || false; return CFG_MEMO_ || null; }
 
 var NUM_KEYS_ = ['quantity', 'progress', 'revisionCount'];
 
@@ -2117,6 +2303,7 @@ function readRows_(sheet, hm, startRow, n, warnings) {
     t.size = Rules.normSize(t.size) || Rules.trim(t.size);
     t.parentId = Rules.trim(t.parentId);
     t.sheetDeadlineWarning = hm.map.sheetDeadlineWarning ? String(displays[r][hm.map.sheetDeadlineWarning - 1]) : '';
+    (hm.custom || []).forEach(function (k) { var cv = row[hm.map[k] - 1]; t[k] = isDate_(cv) ? Utilities.formatDate(cv, tz, 'yyyy-MM-dd') : (cv === true ? 'TRUE' : cv === false ? '' : String(cv === null || cv === undefined ? '' : cv).replace(/\s+$/, '')); });
     t._row = startRow + r;
     out.push(t);
   }
@@ -2182,7 +2369,7 @@ function writeChanges_(sheet, row, hm, task, keys) {
   try {
     keys.forEach(function (k) {
       var c = hm.map[k];
-      if (!c || Rules.WRITE_KEYS.indexOf(k) < 0) return;
+      if (!c || (Rules.WRITE_KEYS.indexOf(k) < 0 && !Rules.isCustomKey(k))) return;
       var cell = sheet.getRange(row, c);
       done.push({ cell: cell, value: cell.getValue(), formula: cell.getFormula(), fmt: cell.getNumberFormat() });
       try { writeCell_(sheet, row, c, k, task[k]); }
@@ -2216,7 +2403,7 @@ function appendTaskRow_(sh, hm, lastDataRow, task) {
       if (src.getFormula() !== '' && dst.getFormula() === '') src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
     }
   }
-  var keys = Rules.WRITE_KEYS.filter(function (k) { return hm.map[k] && !(task[k] === '' || task[k] === null || task[k] === undefined); });
+  var keys = Rules.WRITE_KEYS.concat(hm.custom || []).filter(function (k) { return hm.map[k] && !(task[k] === '' || task[k] === null || task[k] === undefined); });
   writeChanges_(sh, row, hm, task, keys);
   return row;
 }
@@ -2226,6 +2413,7 @@ function annotatedAll_(sh, hm, cfg) {
   var res = readAll_(sh, hm);
   return { res: res, tasks: Rules.annotateTasks(res.tasks, today_(), cfg.priorities) };
 }
+function forUser_(user, cfg, task) { return task ? Rules.visibleTasks(user, [task], cfg.props)[0] : task; }
 function annotatedTask_(sh, hm, cfg, id) { return findTask_(annotatedAll_(sh, hm, cfg).tasks, id); }
 
 // ============================================================================
@@ -2274,6 +2462,7 @@ function readConfigRaw_() {
   return Rules.mergeConfig(obj);
 }
 function writeConfig_(cfg) {
+  CFG_MEMO_ = null;
   var ss = ss_();
   var sh = ss.getSheetByName(CONFIG_SHEET);
   if (!sh) {
@@ -2383,9 +2572,28 @@ function notifyRemind_(task) {
   queueMail_(task.requesterEmail, task, 'Nhắc duyệt', ['Đơn đang chờ bạn duyệt. Nếu không phản hồi, đơn sẽ tự duyệt vào ' +
     Rules.ymdToDmy(Rules.autoApproveDate(task)) + '.', 'Link kết quả: ' + (task.deliveryLink || '—')]);
 }
+/** Property → Notifications: báo cho người liên quan khi cột có bật thông báo thay đổi. */
+function notifyProps_(cfg, actor, before, after, keys) {
+  try {
+    var me = Rules.normEmail(actor && actor.email);
+    keys.forEach(function (k) {
+      var tg = Rules.propNotifyTargets(cfg.props, k, before, after);
+      var to = tg.emails.slice();
+      tg.names.forEach(function (n) { var e = emailOfName_(cfg, n); if (e) to.push(e); });
+      var label = Rules.propDef(cfg.props, k).label || Rules.propDef(cfg.props, k).header || Rules.HEADERS[k] || k;
+      var seen = {};
+      to.forEach(function (e) {
+        if (!e || e === me || seen[e]) return; seen[e] = 1;
+        queueMail_(e, after, 'Cập nhật "' + label + '"', [actor.name + ' đã đổi "' + label + '": ' + (oneLine_(before[k], 80) || '(trống)') + ' → ' + (oneLine_(after[k], 80) || '(trống)')]);
+      });
+    });
+  } catch (e) { /* thông báo không được làm hỏng thao tác chính */ }
+}
+
 function flushMail_() {
   var list = PENDING_MAIL_;
   PENDING_MAIL_ = [];
+  CFG_MEMO_ = null;
   var errs = [];
   (list || []).forEach(function (m) {
     try {
@@ -2432,7 +2640,7 @@ function actionList_(user, cfg) {
   var all = Rules.annotateTasks(res.tasks, today_(), cfg.priorities);
   var va = Rules.can(user, 'viewAllConfig').ok;
   return {
-    data: { tasks: Rules.visibleTasks(user, all) },
+    data: { tasks: Rules.visibleTasks(user, all, cfg.props) },
     meta: { serverTime: nowIso_(), sheetName: sh.getName(), configVersion: cfg.version, warnings: va ? res.warnings : [], aiEnabled: aiEnabled_() }
   };
 }
@@ -2496,7 +2704,7 @@ function actionCreate_(body, user, cfg) {
     if (draftId) cache.remove(draftKey_(draftId));
     notifyNew_(out.saved, cfg);
   }
-  return annotatedTask_(out.sh, out.hm, cfg, out.id);
+  return forUser_(user, cfg, annotatedTask_(out.sh, out.hm, cfg, out.id));
 }
 
 function actionUpdate_(body, user, cfg) {
@@ -2516,7 +2724,7 @@ function actionUpdate_(body, user, cfg) {
     var opts = { note: body.note, force: !!body.force, skipTransitionCheck: !!body.skipTransitionCheck };
     var r = Rules.applyUpdate(cur, changes, base, opts, ctx);
     var keys = r.changedKeys.filter(function (k) { return !!hm.map[k]; });
-    if (!keys.length) return { task: cur };
+    if (!keys.length) return { task: forUser_(user, cfg, cur) };
     writeChanges_(sh, cur._row, hm, r.task, keys);
     var ts = nowIso_();
     appendLogs_(r.logs.filter(function (l) { return l.action === 'status' || hm.map[l.field]; }).map(function (l) {
@@ -2525,7 +2733,8 @@ function actionUpdate_(body, user, cfg) {
     SpreadsheetApp.flush();
     var after = readRow_(sh, hm, cur._row);
     var extra = afterStatusChange_(sh, hm, cfg, after, r.statusTo, Rules.trim(body.note), false, r.statusFrom);
-    return { task: annotatedTask_(sh, hm, cfg, cur.id), cascade: extra && extra.cascade ? extra.cascade : null };
+    notifyProps_(cfg, user, cur, after, keys);
+    return { task: forUser_(user, cfg, annotatedTask_(sh, hm, cfg, cur.id)), cascade: extra && extra.cascade ? extra.cascade : null };
   });
 }
 
@@ -2631,6 +2840,41 @@ function actionAddComment_(body, user, cfg) {
   });
 }
 
+/** Đồng bộ cột tự thêm với Sheet: tạo cột mới, đổi tên header, chép dữ liệu khi Duplicate. Xoá property = chỉ ẩn, giữ dữ liệu. */
+function syncPropColumns_(cur, next) {
+  var before = (cur.props && cur.props.defs) || {}, defs = next.props.defs, notes = [];
+  var keys = Object.keys(defs).filter(function (k) { return Rules.isCustomKey(k); });
+  if (!keys.length) return '';
+  var sh = getDataSheet_();
+  var lc = Math.max(sh.getLastColumn(), 1);
+  var hdr = sh.getRange(1, 1, 1, lc).getValues()[0];
+  var colOf = function (h) { var n = Rules.normText(h); for (var i = 0; i < hdr.length; i++) if (Rules.normText(hdr[i]) === n) return i + 1; return 0; };
+  keys.forEach(function (k) {
+    var d = defs[k], old = before[k];
+    if (old && old.header && Rules.normText(old.header) !== Rules.normText(d.header)) {
+      var oc = colOf(old.header);
+      if (oc) { sh.getRange(1, oc).setValue(Rules.trim(d.header)); hdr[oc - 1] = Rules.trim(d.header); notes.push('Đổi tên cột ' + old.header + ' → ' + d.header); }
+    }
+    if (!colOf(d.header)) {
+      var c = sh.getLastColumn() + 1;
+      if (sh.getMaxColumns() < c) sh.insertColumnsAfter(sh.getMaxColumns(), c - sh.getMaxColumns());
+      sh.getRange(1, c).setValue(Rules.trim(d.header));
+      hdr[c - 1] = Rules.trim(d.header);
+      notes.push('Thêm cột ' + d.header);
+    }
+    if (d.copyFrom) {
+      var hm = headerMap_(sh);
+      var src = hm.map[d.copyFrom] || colOf((before[d.copyFrom] || defs[d.copyFrom] || {}).header || '');
+      var dst = colOf(d.header);
+      var n = sh.getLastRow() - 1;
+      if (src && dst && n > 0) sh.getRange(2, dst, n, 1).setValues(sh.getRange(2, src, n, 1).getValues());
+      delete d.copyFrom;
+      notes.push('Nhân bản cột ' + d.header);
+    }
+  });
+  return notes.join('; ');
+}
+
 function actionSaveConfig_(body, user) {
   var p = Rules.can(user, 'saveConfig');
   if (!p.ok) throw forbidden_(p.reason);
@@ -2642,10 +2886,11 @@ function actionSaveConfig_(body, user) {
     var next = Rules.mergeConfig(body.config || {});
     var msg = Rules.validateConfig(next);
     if (msg) throw Rules.err('VALIDATION', 'Dữ liệu không hợp lệ: ' + msg, { fields: { config: msg } });
+    var propLog = syncPropColumns_(cur, next);
     next.version = Number(cur.version) + 1;
     next.updatedAt = nowIso_();
     writeConfig_(next);
-    appendLogs_([logEntry_(user.name, '', 'config', '', '', '', 'Cập nhật danh mục')]);
+    appendLogs_([logEntry_(user.name, '', 'config', '', '', '', propLog || 'Cập nhật danh mục')]);
     return configFor_(user, next);
   });
 }
@@ -2773,6 +3018,7 @@ function installDailyTrigger_() {
 
 function dailyJob() {
   PENDING_MAIL_ = [];
+  CFG_MEMO_ = null;
   LOCK_DEPTH_ = 0;
   var sum = { approved: [], reminded: [], remCleared: 0, sessionsRemoved: 0, quotaRemoved: 0, errors: [] };
   // whole pass under the script lock (sheet writes + rem_/sess_ property bookkeeping); mail is sent after release
