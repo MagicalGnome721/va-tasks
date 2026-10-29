@@ -2901,14 +2901,18 @@ const API_PARAM_INVALID = !!trim(PARAMS.get('api')) && !normApiUrl(PARAMS.get('a
 // ?api=<web app url> lets a team share one link that configures the app. It is NEVER applied
 // silently: a value that differs from the saved URL needs explicit confirmation (see init),
 // and sessions are bound to the URL that issued them, so a token can't follow a new URL.
+// Bản phát hành (publish/index.html) gắn cứng máy chủ: không có Demo, không có ô kết nối.
+const BUILT_API = normApiUrl('https://script.google.com/macros/s/AKfycbyFjOIliZIdNv37aHrD28RTif70CVr_IZh5kXTjfr_4ioZyORcNVAoP-p17PZmBjX8/exec');
+if (BUILT_API && trim(LS.raw('va.apiUrl')) !== BUILT_API) { LS.setRaw('va.apiUrl', BUILT_API); LS.del('va.session'); }
 const PENDING_API = (() => {
+  if (BUILT_API) return '';
   const a = normApiUrl(PARAMS.get('api'));
   if (!a) return '';
   if (a === trim(LS.raw('va.apiUrl'))) return '';
   return a;
 })();
 const savedApiUrl = () => trim(LS.raw('va.apiUrl'));
-const FORCE_DEMO = PARAMS.get('demo') === '1';
+const FORCE_DEMO = !BUILT_API && PARAMS.get('demo') === '1';   // bản phát hành: không có Demo
 function configuredMode() { return (!FORCE_DEMO && trim(LS.raw('va.apiUrl'))) ? 'remote' : 'demo'; }
 function realToday() { return localYmd(); }
 const DEMO_TODAY = Rules.isValidYmd(PARAMS.get('demoToday') || '') ? PARAMS.get('demoToday') : null;
@@ -5453,7 +5457,7 @@ function syncHtml() {
   const tr = settingsUi.testResult;
   const ai = S.aiEnabled;
   return `<section class="card" data-testid="settings-connection"><h2>Kết nối Google Sheet</h2><p class="card-desc">${S.mode === 'demo' ? 'Đang ở chế độ Demo: dữ liệu mẫu chỉ nằm trong trình duyệt này.' : 'Đang đồng bộ với Google Sheet qua Apps Script.'}</p>
-      <div class="stack">
+      ${BUILT_API && S.mode === 'remote' ? `<p class="muted">Máy chủ được gắn sẵn trong bản phát hành — không cần cấu hình.</p><div class="btn-row"><button type="button" class="btn" data-testid="settings-test-connection" data-act="test-conn">Kiểm tra kết nối</button></div>${settingsUi.testResult ? `<p class="result-line ${settingsUi.testResult.ok ? 'ok' : 'err'}" role="status">${esc(settingsUi.testResult.text)}</p>` : ''}` : `<div class="stack">
         <div class="field ${settingsUi.urlError ? 'has-error' : ''}"><label for="set-url">Apps Script Web App URL</label>
           <input type="url" id="set-url" data-testid="settings-api-url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(settingsUi.urlDraft != null ? settingsUi.urlDraft : (LS.raw('va.apiUrl') || ''))}" autocomplete="off" spellcheck="false">
           ${settingsUi.urlError ? `<div class="field-error" role="alert">${esc(settingsUi.urlError)}</div>` : '<div class="field-hint">Chia sẻ cho team link app kèm <code>?api=&lt;URL này&gt;</code> để mọi người khỏi phải dán URL.</div>'}</div>
@@ -5461,7 +5465,7 @@ function syncHtml() {
           <button type="button" class="btn btn-primary" data-testid="settings-save-connection" data-act="save-conn">Lưu</button></div>
         ${tr ? `<p class="result-line ${tr.ok ? 'ok' : 'err'}" role="status" data-testid="settings-test-result">${esc(tr.text)}</p>` : ''}
         ${FORCE_DEMO && trim(LS.raw('va.apiUrl')) ? '<p class="muted">URL đang có tham số <code>?demo=1</code> nên app vẫn chạy Demo.</p>' : ''}
-      </div></section>
+      </div>`}</section>
     <section class="card"><h2>Trợ lý AI (DeepSeek)</h2>
       <p class="ai-status" data-testid="settings-ai-status" data-enabled="${ai === true ? 'true' : ai === false ? 'false' : 'unknown'}"><span class="dot" aria-hidden="true"></span>${ai === true ? 'Đang bật — AI đọc đơn khi tạo, lập kế hoạch, trả lời câu hỏi và viết báo cáo tuần.' : ai === false ? 'Đang tắt — chưa có API key DeepSeek. Người order dùng form thủ công.' : 'Chưa rõ (chưa tải cấu hình).'}</p>
       <p class="card-desc" style="margin:8px 0 0">${S.user && S.user.isOwner ? 'Dán hoặc đổi API key ở <a href="#/settings/admin">Quản trị</a>.' : 'Quản trị viên bật / tắt AI trong mục Quản trị.'}</p></section>
@@ -6756,7 +6760,7 @@ function loginHtml() {
       </form>`}
     <div class="field-error lg-error" data-testid="login-error" role="alert" ${L.error ? '' : 'hidden'}>${esc(L.error)}</div>
     ${demo ? `<div class="lg-quick"><div class="lg-sep"><span>hoặc chọn nhanh tài khoản mẫu</span></div>${grp('Team VA', accounts.filter((a) => a.role === 'va'))}${grp('Người order', accounts.filter((a) => a.role !== 'va'))}</div>` : ''}
-    <div class="lg-foot">
+    <div class="lg-foot" ${BUILT_API && !demo ? 'hidden' : ''}>
       <button type="button" class="linklike" data-lg-act="conn" aria-expanded="${L.showConn}" data-testid="login-conn-toggle">${demo ? 'Kết nối Google Sheet…' : 'Kết nối: ' + esc(apiUrl.replace(/^https:\/\//, '').slice(0, 38)) + '…'}</button>
       ${L.showConn ? `<div class="lg-conn"><label for="lg-api" class="sr-only">Apps Script Web App URL</label><input type="url" id="lg-api" class="input" data-testid="login-api-url" value="${esc(apiUrl)}" placeholder="https://script.google.com/macros/s/…/exec" spellcheck="false">
         <div class="lg-conn-row"><button type="button" class="btn btn-sm" data-lg-act="conn-save" data-testid="login-api-save">Lưu kết nối</button>${apiUrl ? '<button type="button" class="btn btn-sm btn-ghost" data-lg-act="conn-clear">Dùng Demo</button>' : ''}</div>
