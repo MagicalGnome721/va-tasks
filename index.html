@@ -5526,11 +5526,11 @@ function adminHtml() {
         <li>Mở <b>console.cloud.google.com</b> bằng ${esc(a.ownerEmail)} › tạo project (VD “VA Tasks”).</li>
         <li><b>APIs &amp; Services › OAuth consent screen</b>: chọn <i>External</i>, điền tên app + email › Publish app.</li>
         <li><b>Credentials › Create credentials › OAuth client ID</b> › loại <i>Web application</i>.</li>
-        <li><b>Authorized JavaScript origins</b>: thêm <code>${esc(origin)}</code> (địa chỉ đang mở app, không có dấu / cuối).</li>
+        <li><b>Authorized JavaScript origins</b>: thêm <code>${esc(origin)}</code> (địa chỉ đang mở app, không có dấu / cuối). Thêm <code>https://vaqueuecenter.pages.dev</code> để dùng bản Cloudflare Pages; giữ origin hiện tại nếu vẫn dùng cả hai địa chỉ.</li>
         <li>Create › copy <b>Client ID</b> dán vào ô trên › Lưu. Người dùng vẫn phải có Gmail trong danh sách Thành viên.</li></ol></details>
       <div class="btn-row"><button type="button" class="btn btn-primary" data-admin="save-google" data-testid="admin-save-google" ${busy ? 'disabled' : ''}>${busy === 'save-google' ? '<span class="saving-spin" aria-hidden="true"></span>Đang lưu…' : 'Lưu'}</button></div></section>
     <section class="card" data-testid="admin-mail"><h2>Email thông báo</h2>
-      ${adminField('ad-url', 'Link app (chèn vào email)', `<input type="url" id="ad-url" data-testid="admin-app-url" value="${esc(a.appUrl)}" placeholder="https://magicalgnome721.github.io/va-tasks/" autocomplete="off" spellcheck="false">`, E.appUrl, 'Email đơn mới / chờ duyệt / báo cáo tuần sẽ có link mở thẳng đơn.')}
+      ${adminField('ad-url', 'Link app (chèn vào email)', `<input type="url" id="ad-url" data-testid="admin-app-url" value="${esc(a.appUrl)}" placeholder="https://vaqueuecenter.pages.dev/" autocomplete="off" spellcheck="false">`, E.appUrl, 'Email đơn mới / chờ duyệt / báo cáo tuần sẽ có link mở thẳng đơn.')}
       <label class="check" style="margin-top:10px"><input type="checkbox" id="ad-weekly" data-testid="admin-weekly" ${a.weeklyReport ? 'checked' : ''}>Gửi báo cáo tuần cho team VA mỗi sáng thứ Hai</label>
       <div class="btn-row"><button type="button" class="btn btn-primary" data-admin="save-mail" data-testid="admin-save-mail" ${busy ? 'disabled' : ''}>${busy === 'save-mail' ? '<span class="saving-spin" aria-hidden="true"></span>Đang lưu…' : 'Lưu'}</button></div></section>`;
 }
