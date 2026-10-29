@@ -7195,6 +7195,7 @@ async function route() {
   if (prevView !== view || force || !hadOverlay || App.mounted == null) renderView({ force: true });
   if (Drawer.isOpen()) Drawer.closeUI();
   renderTopbar();
+  if (view === 'new' && prevView !== 'new') setTimeout(buddyOrderTip, 300); // Cún popup nhắc người order
   if (!hadOverlay) { const m = $('#main'); if (m && prevView !== view) m.focus({ preventScroll: true }); window.scrollTo(0, 0); }
 }
 function ensureBackground() {
