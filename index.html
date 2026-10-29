@@ -633,10 +633,21 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes slide-in { from { transform: translateX(24px); opacity: .5; } }
 @keyframes pop { from { transform: translateY(6px) scale(.99); opacity: 0; } }
+/* Chi tiết đơn: cửa sổ lớn giữa màn hình (desktop), toàn màn hình (mobile) */
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 100vw); z-index: 51; background: var(--surface);
-  box-shadow: var(--shadow-3); display: flex; flex-direction: column; animation: slide-in .2s cubic-bezier(.2, .8, .2, 1); border-left: 1px solid var(--line);
+  position: fixed; inset: 0; margin: auto; width: min(1120px, calc(100vw - 48px)); height: min(860px, calc(100vh - 48px)); z-index: 51;
+  background: var(--surface); box-shadow: var(--shadow-3); display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-lg); animation: pop .18s cubic-bezier(.2, .8, .2, 1);
 }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+.detail-side { position: sticky; top: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px 16px 4px; }
+.detail-side .fieldset { margin-bottom: 12px; }
+.form-grid.is-side { grid-template-columns: 1fr; gap: 12px; }
+.form-grid.is-side > .field { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; column-gap: 10px; }
+.form-grid.is-side > .field > label, .form-grid.is-side > .field > .label { margin: 0; color: var(--muted); font-weight: 500; }
+.form-grid.is-side > .field > :not(label):not(.label) { grid-column: 2; }
+.detail-main .field textarea:not([data-k="description"]) { min-height: 40px; }
+@media (max-width: 899px) { .detail-grid { grid-template-columns: 1fr; } .detail-side { position: static; order: -1; } }
 .drawer-head { padding: 14px 18px 12px 22px; border-bottom: 1px solid var(--line); }
 .drawer-topline { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .drawer-id { font-family: var(--mono); font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
@@ -886,8 +897,6 @@ details.guide ol { margin: 8px 0 0; padding-left: 22px; line-height: 1.8; color:
    Toasts
    ======================================================================== */
 .toast-root { position: fixed; right: 20px; bottom: 20px; z-index: 95; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
-@media (min-width: 1024px) { body.has-drawer .toast-root { right: 640px; } }
-@media (min-width: 768px) and (max-width: 1023px) { body.has-drawer .toast-root { left: 20px; right: auto; align-items: flex-start; bottom: 20px; } body.has-drawer .toast { max-width: calc(100vw - min(620px, 100vw) - 40px); min-width: 0; } }
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 10px; min-width: 260px; max-width: 440px; padding: 10px 10px 10px 14px;
   background: #1a1e27; color: #f2f4f7; border-radius: var(--r-md); box-shadow: var(--shadow-2); animation: pop .16s ease-out; font-weight: 500;
@@ -1167,7 +1176,7 @@ body.is-login .app { display: none; }
   .board { margin: 0 -16px; padding: 0 16px 16px; scroll-snap-type: x mandatory; min-height: calc(100vh - 260px); }
   .col { flex: 0 0 85vw; }
   .col[data-collapsed="true"] { flex: 0 0 46px; }
-  .drawer { width: 100vw; }
+  .drawer { width: 100vw; height: 100%; border-radius: 0; border: 0; }
   .drawer-actions { padding: 10px 16px; }
   .info-box { margin: 10px 16px 0; }
   .form-grid, .row-3 { grid-template-columns: 1fr; }
@@ -1329,6 +1338,14 @@ body.has-drawer .buddy[data-open="false"] { display: none; }
 .login { background: radial-gradient(900px 480px at 50% -8%, color-mix(in srgb, #ff7a6b 30%, transparent), transparent 62%), radial-gradient(700px 400px at 90% 110%, color-mix(in srgb, #ffa057 22%, transparent), transparent 60%), var(--canvas); }
 .login-stage { display: flex; flex-direction: column; align-items: center; gap: 0; width: min(420px, 100%); }
 .lg-mascot { position: relative; display: flex; align-items: flex-end; gap: 6px; align-self: flex-start; margin: 0 0 -6px 4px; }
+.lg-poke { border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+.lg-poke:focus-visible { outline: 3px solid var(--brand-soft); }
+.lg-poke.is-shake img { animation: lg-shake .45s ease-in-out; }
+.lg-poke.is-bite img { animation: lg-bite .6s cubic-bezier(.3, 1.6, .5, 1); }
+.lg-say.is-pop { animation: bubble-in .35s cubic-bezier(.2, 1.3, .4, 1) both; }
+.lg-say.is-angry { background: var(--err-bg); color: var(--err-fg); border-color: var(--err-line); }
+@keyframes lg-shake { 0%, 100% { transform: none; } 20% { transform: rotate(-8deg); } 40% { transform: rotate(7deg); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(3deg); } }
+@keyframes lg-bite { 0% { transform: none; } 30% { transform: scale(1.18) translateX(10px) rotate(6deg); } 50% { transform: scale(.94) rotate(-4deg); } 70% { transform: scale(1.1) translateX(6px); } 100% { transform: none; } }
 .lg-mascot img { width: 108px; height: 124px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(80, 30, 15, .2)); animation: buddy-hop .8s cubic-bezier(.3, 1.6, .5, 1) both; }
 .lg-say { margin-bottom: 58px; padding: 9px 13px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 14px 14px 14px 4px; box-shadow: var(--shadow-2); font-weight: 600; font-size: 13.5px; max-width: 250px; animation: bubble-in .4s .35s cubic-bezier(.2, 1.3, .4, 1) both; }
 
@@ -3627,15 +3644,21 @@ function prefsFromQuery(qs) {
 const me = () => S.user;
 const myName = () => (S.user ? S.user.name : '');
 const isVA = () => !!(S.user && S.user.role === 'va');
+// "Nhận làm" gán người làm = chính mình → chỉ thành viên VA (isArtist) mới nhận được; máy chủ cũng chặn y như vậy.
+const isVAMember = () => !!S.user && (S.config.members || []).some((m) => m.isArtist && m.active !== false && sameName(m.name, S.user.name));
+const claimBlocked = (t) => !!t && statusKey(t) === 'new' && !trim(t.assignee) && !isVAMember();
+const CLAIM_BLOCK_REASON = 'Chỉ thành viên VA mới nhận làm được';
 function can(action, task, changes) {
   if (!S.user) return { ok: false, reason: 'Chưa đăng nhập' };
+  if (action === 'transition:in_progress' && claimBlocked(task)) return { ok: false, reason: CLAIM_BLOCK_REASON };
   try { return Rules.can(S.user, action, task || null, changes) || { ok: false, reason: '' }; } catch (e) { return { ok: false, reason: e.message }; }
 }
 // "Nhận làm" on an XL order in Mới opens the split dialog (Rules.can denies the claim itself)
 function claimViaSplit(t) { return !!t && statusKey(t) === 'new' && trim(t.size) === 'XL' && can('split', t).ok; }
 function allowedTo(t) {
   if (!S.user || !t || t._tmp) return [];
-  try { return Rules.allowedTransitions(S.user, t) || []; } catch (e) { return []; }
+  let list; try { list = Rules.allowedTransitions(S.user, t) || []; } catch (e) { return []; }
+  return claimBlocked(t) ? list.filter((k) => k !== 'in_progress') : list;
 }
 
 // ----- selectors -----
@@ -4967,7 +4990,9 @@ function renderOverview(view) {
   const open = S.tasks.filter((t) => Rules.isOpen(t));
   const counts = {
     queue: S.tasks.filter((t) => colKey(t) === 'new').length,
-    mine: open.filter(isMine).length,
+    // cùng định nghĩa với danh sách "Việc của tôi" (Rules.myWorkSort): Đang làm + Cần sửa của mình
+    mine: open.filter((t) => isMine(t) && ['in_progress', 'changes_requested'].indexOf(statusKey(t)) >= 0).length,
+    myReview: open.filter((t) => isMine(t) && statusKey(t) === 'review').length,
     review: S.tasks.filter((t) => statusKey(t) === 'review').length,
     changes: S.tasks.filter((t) => statusKey(t) === 'changes_requested').length,
     overdue: open.filter((t) => dlState(t).state === 'overdue').length,
@@ -4995,7 +5020,7 @@ function renderOverview(view) {
   const wl = artists.map((m) => { const ts = open.filter((t) => sameName(t.assignee, m.name) && ['in_progress', 'changes_requested', 'review'].indexOf(statusKey(t)) >= 0); return { m, n: ts.length, over: ts.filter((t) => dlState(t).state === 'overdue').length, sizes: ts.map((t) => trim(t.size)).filter(Boolean).join(' ') }; });
   const maxW = Math.max(1, ...wl.map((x) => x.n));
   view.innerHTML = `
-    <div class="view-head"><div><h1 class="view-title">Chào ${esc(first || 'bạn')}</h1><p class="view-sub">Hôm nay ${esc(fmtDate(today()))} · ${counts.queue} đơn trong hàng · ${counts.mine ? `bạn có ${counts.mine} việc đang mở` : 'bạn chưa nhận việc nào'}</p></div></div>
+    <div class="view-head"><div><h1 class="view-title">Chào ${esc(first || 'bạn')}</h1><p class="view-sub">Hôm nay ${esc(fmtDate(today()))} · ${counts.queue} đơn trong hàng · ${counts.mine ? `bạn có ${counts.mine} việc đang làm` : 'bạn không có việc nào đang làm'}${counts.myReview ? ` (+${counts.myReview} chờ duyệt)` : ''}</p></div></div>
     <div class="stats">${STATS.map(([k, label, qf, hint]) => `
       <button type="button" class="stat ${(k === 'overdue' || k === 'changes') && counts[k] > 0 ? 'is-hot' : ''}" data-key="${k}" data-testid="stat-card-${k}" data-qf="${qf}">
         <span class="stat-label">${label}</span><span class="stat-value">${counts[k]}</span><span class="stat-hint">${esc(hint)}</span>
@@ -5741,11 +5766,742 @@ function bindAiForm(view) {
 }
 
 // ============================================================================
+// Câu thoại của Cún — quản gia team VA, giọng GenZ. Chỉ dùng nội bộ.
+// Muốn thêm câu: thêm 1 dòng vào đúng nhóm. Cún nói lần lượt hết cả nhóm
+// (thứ tự xáo ngẫu nhiên) rồi mới lặp lại, nên nhóm càng dài càng ít trùng.
+// Biến chèn vào câu: {n} tên người dùng · {c} số lượng · {id} mã đơn ·
+// {name} tên đơn · {pos} đoạn ", sớm nhất ở vị trí #x" (có thể rỗng)
+// ============================================================================
+const BUDDY_LINES = {
+  // ---- câu chào theo giờ (ghép sau lời chào) ----
+  night: [
+    'Khuya rồi đó sếp, cày gì mà ác vậy 😴',
+    'Giờ này còn on, đúng là main character',
+    'Ba giờ sáng mà vẫn slay, respect 🫡',
+    'Khuya vầy mà còn làm, deadline dí dữ lắm hả',
+    'Cú đêm chính hiệu, Cún trực ca đêm cùng nè 🦉',
+    'Giờ này người ta ngủ hết rồi, chỉ còn sếp với Cún',
+    'Thức khuya là toang da đó, làm lẹ rồi ngủ nha',
+    'Đêm khuya, hàng đợi vẫn yên, sếp thì chưa yên 😵‍💫',
+    'Ủa chưa ngủ hả? Cún tưởng mỗi Cún mất ngủ',
+    'Night shift unlocked 🌙',
+    'Khuya rồi, nhớ uống nước, đừng uống thêm cà phê nha',
+    'Sếp on giờ này là có biến gì rồi đúng không 👀',
+    'Đêm nay trăng đẹp, task thì không đẹp lắm',
+    'Làm tí rồi đi ngủ, sức khỏe là số một nha',
+    'Giờ này làm là auto tập trung, không ai ping 🤫',
+    'Khuya quá trời, Cún bật dark mode tâm hồn rồi',
+    'Thức xuyên đêm hả? Mai nhớ ngủ bù nha sếp',
+    'Đêm khuya chill chill, xử nhẹ vài task thôi',
+    'Cún pha sẵn ly sữa nóng ảo cho sếp nè 🥛',
+    'Giờ này là giờ của idea bay cao đó',
+  ],
+  morning: [
+    'Sáng rồi nè, quản gia Cún đã dọn sẵn hàng đợi ☀️',
+    'Cà phê chưa sếp? Chưa thì đi đi rồi quẩy',
+    'Morning! Hôm nay mình slay nha',
+    'Ngày mới năng lượng mới, let’s gooo 🚀',
+    'Sáng sớm đã on, đúng là người của công việc',
+    'Chào buổi sáng, hôm nay vibe tốt lắm á',
+    'Sáng nay trời đẹp, hợp để chốt vài đơn',
+    'Ăn sáng chưa sếp? Bụng đói là não lag đó',
+    'Good morning, Cún check rồi, hàng đợi ổn áp',
+    'Mở mắt ra là thấy task, đời VA là vậy đó 😌',
+    'Buổi sáng mà, làm việc khó trước cho tỉnh',
+    'Hôm nay mình làm ít mà chất nha',
+    'Sáng rồi, bật nhạc lên rồi vào việc thôi 🎧',
+    'Rise and grind, nhưng grind nhẹ thôi',
+    'Sáng nay Cún có linh cảm là một ngày đẹp',
+    'Vô ca rồi nè, Cún pha sẵn cà phê ảo ☕',
+    'Morning vibe check: pass ✅',
+    'Sáng rồi, xem đầu hàng có gì hot không',
+    'Chào ngày mới, chào luôn cái deadline',
+    'Hôm nay plan gì đây sếp? Cún nghe nè',
+    'Sáng sớm làm việc là não chạy max speed',
+    'Lên đồ tinh thần rồi chiến thôi 💅',
+  ],
+  noon: [
+    'Trưa rồi, đi ăn đi sếp, đói là mood xuống liền á',
+    'Giờ cơm nè, nạp năng lượng rồi chiến tiếp',
+    'Trưa nay ăn gì? Cún vote cơm tấm 🍚',
+    'Nghỉ trưa xíu đi, task không chạy mất đâu',
+    'Đói là mất tập trung, ăn trước làm sau',
+    'Lunch time! Đừng skip bữa nha sếp',
+    'Trưa rồi mà còn on, chăm quá trời',
+    'Ăn xong chợp mắt 15 phút là chiều slay liền',
+    'Bún bò hay phở đây sếp? Cún phân vân giùm',
+    'Giờ này ai cũng đi ăn, sếp cũng đi đi',
+    'Nạp carb rồi quay lại cày tiếp nha',
+    'Trưa nắng quá, uống ly trà đá cho mát',
+    'Ăn trưa chưa? Chưa thì Cún giữ task giùm',
+    'Break time, cho mắt nghỉ xíu khỏi màn hình',
+    'Đừng ăn trưa trước màn hình nha, tội cái bụng',
+    'Giữa ngày rồi, check nhanh tiến độ rồi đi ăn',
+    'Trưa rồi, nửa ngày đã qua, sếp vẫn ổn chứ',
+    'Ăn no rồi buồn ngủ là chuyện bình thường 😪',
+    'Order đồ ăn đi, Cún không ăn ké đâu',
+    'Trưa nay ăn gì mà ngon thì kể Cún nghe',
+  ],
+  afternoon: [
+    'Chiều rồi, cố xíu nữa là được về rồi 💪',
+    'Buổi chiều chill nha, đừng để deadline dí',
+    'Chiều rồi mà năng lượng vẫn đầy, đỉnh ghê',
+    'Giờ này dễ buồn ngủ, đứng dậy đi lại tí nè',
+    'Afternoon slump hả? Làm task dễ trước đi',
+    'Chiều nay chốt thêm một đơn là đẹp',
+    'Còn vài tiếng nữa thôi, cố lên sếp ơi',
+    'Ly trà sữa buổi chiều là chân ái 🧋',
+    'Chiều rồi, check lại đơn nào sắp tới hạn nha',
+    'Giờ này làm việc mượt nhất nè',
+    'Buổi chiều mà, cứ từ từ, chắc ăn là được',
+    'Cún thấy sếp làm tốt lắm rồi đó',
+    'Chiều rồi, tranh thủ gửi duyệt cho kịp nha',
+    'Ráng thêm chút, tối về chill',
+    'Nắng chiều đẹp, task chiều cũng phải đẹp',
+    'Giữa chiều rồi, nghỉ mắt 20 giây đi sếp',
+    'Chiều nay vibe nhẹ nhàng thôi nha',
+    'Chiều là lúc dọn dẹp mấy task lặt vặt',
+    'Ai đó cần một ly cà phê chiều không ☕',
+    'Cuối ngày gần tới rồi, finish strong nha',
+    'Chiều rồi, nhớ cập nhật trạng thái đơn nha',
+  ],
+  evening: [
+    'Tối rồi mà còn on app, chăm dữ thần 👀',
+    'Về nghỉ đi sếp, việc để mai Cún giữ cho',
+    'OT hả sếp? Nhớ ăn tối đó',
+    'Tối rồi, làm nốt cái này rồi off nha',
+    'Giờ này nên chill, không nên cày',
+    'Tối nay xem phim hay làm task đây?',
+    'Cún trực tối, sếp làm lẹ rồi về',
+    'Tối rồi, đừng để công việc ăn mất đời sống',
+    'Đèn tối, màn hình sáng, mắt mỏi rồi đó',
+    'Ăn tối chưa sếp? Đói là quạu đó',
+    'Tối rồi, check nhanh rồi tắt máy nha',
+    'Giờ này mà còn làm là thật sự có tâm',
+    'Work-life balance đâu rồi sếp ơi 😅',
+    'Tối nay Cún cho phép sếp nghỉ sớm',
+    'Làm việc buổi tối cũng chill phết',
+    'Tối rồi, mai làm tiếp, task không bỏ đi đâu',
+    'Đang overtime hả? Cún cổ vũ nè 📣',
+    'Tối nay xử nhanh vài việc rồi đi chơi',
+    'Ngày dài rồi, sếp đã làm rất tốt',
+    'Ai còn on giờ này là chiến binh thật sự',
+  ],
+  // ---- lời chào ({n} = tên) ----
+  hello: [
+    'Hello sếp {n} 👋',
+    '{n} tới rồi kìa, quản gia Cún xin chào 🫡',
+    'Yo {n}!',
+    'Ủa {n} đây rồi, Cún chờ nãy giờ',
+    'Chào {n} nha, hôm nay xinh đẹp giỏi giang ghê',
+    'Hế lô {n} ✨',
+    '{n} vào ca rồi, cả team yên tâm',
+    'Chào mừng {n} quay lại nè',
+    'Sếp {n} xuất hiện, hàng đợi run rẩy 😆',
+    'Hi {n}, Cún đã sẵn sàng phục vụ',
+    '{n} ơi, Cún nè',
+    'Welcome back {n} 🙌',
+    'Ê {n}, nay khỏe không?',
+    'Quản gia Cún xin chào sếp {n}',
+    '{n} on rồi, mọi thứ ổn áp',
+    'Ơ {n}! Đúng người Cún đang tìm',
+    'Chào {n}, hôm nay mình chơi lớn không',
+    '{n} tới là có năng lượng liền',
+    'Xin chào {n}, Cún báo cáo tình hình nè',
+    'Hey {n}, vô việc thôi',
+    '{n} ơi, nay có gì vui kể Cún nghe',
+  ],
+  // ---- tình hình (VA) ----
+  overdue: [
+    'Ủa có {c} đơn trễ hạn rồi á 😬 Gỡ từng cái nha, no stress',
+    '{c} đơn quá hạn rồi sếp ơi, xử dần nha',
+    'Báo động nhẹ: {c} đơn trễ hạn 🚨',
+    'Có {c} đơn lố deadline rồi, ưu tiên mấy bé này trước nha',
+    '{c} đơn đang trễ, nhắn người order báo một tiếng cho chắc',
+    'Deadline đã qua với {c} đơn, mình gỡ từ từ',
+    'Trễ {c} đơn rồi nè, nhưng không sao, mình fix được',
+    'Có {c} đơn red flag về hạn, check liền nha 🚩',
+    'Ơ, {c} đơn quá hạn rồi, sếp thấy chưa',
+    '{c} đơn trễ hạn, làm cái nhỏ trước cho gọn',
+    'Cún đếm được {c} đơn trễ, mình dọn nha',
+    '{c} đơn trễ hạn rồi, thở sâu rồi bắt đầu thôi',
+    'Hơi căng nè: {c} đơn quá hạn',
+    'Có {c} đơn qua hạn, nếu kẹt thì báo order dời hạn nha',
+    '{c} đơn đang trễ, mình chốt cái gần xong nhất trước',
+    'Trễ thì trễ, quan trọng là mình xử tiếp, {c} đơn thôi',
+    'Có {c} đơn hết hạn rồi á, gỡ dần nha',
+    '{c} đơn trễ, Cún tin sếp làm được 💪',
+    'Deadline hơi dí: {c} đơn quá hạn',
+    'Nhắc nhẹ: {c} đơn đã quá hạn cần',
+  ],
+  fix: [
+    'Có {c} đơn bị trả về sửa nè, xử trước cho nhẹ đầu nha',
+    '{c} đơn cần sửa, làm lẹ cho xong luôn',
+    'Người order góp ý {c} đơn rồi, check feedback nha',
+    'Có {c} đơn "chưa đạt", sửa phát là đạt',
+    '{c} đơn quay về rồi, đọc kỹ ghi chú trước khi sửa nha',
+    'Feedback tới rồi: {c} đơn cần chỉnh',
+    '{c} đơn cần sửa, sửa xong gửi duyệt lại liền',
+    'Có {c} đơn bị trả, không sao, ai cũng bị',
+    'Ưu tiên {c} đơn cần sửa trước nha sếp',
+    '{c} đơn cần chỉnh xíu nữa thôi là xong',
+    'Cún thấy {c} đơn bị trả về, xử luôn không',
+    'Có {c} đơn cần sửa, feedback rõ ràng lắm',
+    '{c} đơn đợi sửa, làm sớm để không dồn',
+    'Round 2 cho {c} đơn, chiến tiếp thôi',
+    '{c} đơn cần sửa, chưa rõ thì hỏi lại order nha',
+    'Có {c} đơn bị trả về, nhẹ nhàng thôi',
+    'Sửa {c} đơn này là dọn sạch mảng đó',
+    '{c} đơn cần sửa, Cún note lên đầu rồi',
+    'Có {c} đơn đang chờ sếp sửa nè',
+    '{c} đơn bị trả, làm lại cho slay hơn',
+  ],
+  top: [
+    'Đầu hàng đang là {id} – “{name}”. Hốt luôn không sếp?',
+    'Đơn tiếp theo: {id} – “{name}”, nhận đi sếp',
+    '{id} – “{name}” đang đứng đầu hàng nè',
+    'Cún gợi ý làm {id} – “{name}” trước nha',
+    'Next up: {id} – “{name}” 🎯',
+    'Đầu hàng: {id} – “{name}”, chờ sếp nãy giờ',
+    '{id} – “{name}” đang gọi tên sếp đó',
+    'Nếu rảnh thì hốt {id} – “{name}” nha',
+    'Việc nên làm tiếp: {id} – “{name}”',
+    'Hàng đợi đề cử {id} – “{name}” 🏆',
+    '{id} – “{name}” xếp số 1, nhận liền không',
+    'Cún chọn giùm rồi: {id} – “{name}”',
+    'Đơn hot nhất hàng: {id} – “{name}” 🔥',
+    'Làm {id} – “{name}” là hợp lý nhất bây giờ',
+    'Tiếp theo nè: {id} – “{name}”',
+    '{id} – “{name}” đang đợi người nhận',
+    'Rảnh tay thì nhận {id} – “{name}” đi sếp',
+    'Đầu bảng hôm nay: {id} – “{name}”',
+    'Hốt {id} – “{name}” là đẹp đội hình',
+    'Một đơn ngon lành: {id} – “{name}”',
+  ],
+  empty: [
+    'Hàng đợi trống trơn, hiếm lắm á, tận hưởng đi 🍌',
+    'Không còn đơn nào chờ, sếp được nghỉ xíu',
+    'Hàng đợi sạch bong, đỉnh nóc kịch trần ✨',
+    'Hết đơn rồi! Tranh thủ học skill mới không',
+    'Queue zero, hiếm như kim cương 💎',
+    'Không có gì trong hàng, chill thôi sếp',
+    'Trống trơn luôn, Cún ăn chuối ăn mừng 🍌',
+    'Hàng đợi rỗng, team VA đang quá đỉnh',
+    'Hết việc chờ, sếp đi pha ly nước đi',
+    'Không còn đơn mới, dọn dẹp file thôi',
+    'Hàng đợi trống, ngồi chờ order mới thôi',
+    'Clear hết rồi, quá xịn',
+    'Không còn gì để nhận, nghỉ ngơi xíu nha',
+    'Wow, hàng đợi trống, screenshot làm kỷ niệm',
+    'Rảnh hiếm hoi, sếp làm gì cho vui đi',
+    'Không đơn nào chờ, Cún cũng được thở',
+    'Hàng đợi đang zen mode 🧘',
+    'Sạch sẽ gọn gàng, đúng chuẩn quản gia',
+    'Không còn đơn mới, tranh thủ review asset cũ',
+    'Hết đơn chờ, team mình cháy quá',
+  ],
+  nokey: [
+    ' À sếp ơi, chưa có API key DeepSeek nha, dán vào là Cún khôn hẳn luôn.',
+    ' Nhắc nhẹ: chưa có API key DeepSeek, vào Cài đặt dán vào nha.',
+    ' Chưa có API key DeepSeek nên Cún hơi ngơ, sếp thêm giùm nha.',
+    ' Thiếu API key DeepSeek rồi, có key là Cún xếp lịch được luôn.',
+    ' Cún chưa có não AI, sếp dán API key DeepSeek giùm.',
+    ' API key DeepSeek đang trống, Cài đặt là chỗ dán nha.',
+    ' Có API key DeepSeek là Cún upgrade liền, sếp ơi.',
+    ' Chưa cắm API key DeepSeek nên AI đang ngủ đông.',
+    ' Sếp ơi, AI cần API key DeepSeek mới chạy được nha.',
+    ' Nhớ thêm API key DeepSeek để mở khóa trợ lý AI nha.',
+    ' Cún chưa được nạp API key DeepSeek, buồn ghê.',
+    ' AI đang offline vì thiếu API key DeepSeek.',
+    ' Dán API key DeepSeek vào là Cún thông minh gấp đôi.',
+    ' Chưa có API key DeepSeek, mấy nút AI tạm khóa nha.',
+    ' Thêm API key DeepSeek trong Cài đặt giùm Cún nha sếp.',
+    ' Không có API key DeepSeek thì Cún chỉ nói câu viết sẵn thôi.',
+    ' Sếp nhớ setup API key DeepSeek nha, Cún nhắc lần nữa.',
+    ' Thiếu mỗi API key DeepSeek là đủ combo.',
+    ' API key DeepSeek chưa có, AI chưa lên sóng.',
+    ' Có thời gian thì dán API key DeepSeek giùm Cún nha.',
+  ],
+  // ---- tình hình (người order) ----
+  req_review: [
+    'Có {c} đơn đang chờ sếp duyệt nè, duyệt lẹ cho team VA chạy tiếp nha 🙏',
+    '{c} đơn đã xong, chờ sếp xem rồi bấm Đạt nha',
+    'Team VA nộp {c} đơn rồi, sếp check giùm',
+    'Có {c} đơn ready để duyệt ✅',
+    '{c} đơn đang chờ sếp gật đầu',
+    'Hàng mới về: {c} đơn chờ duyệt 📦',
+    '{c} đơn cần sếp xem, chưa ưng thì cứ bấm Chưa đạt',
+    'Sếp ơi {c} đơn đang đợi duyệt nè',
+    '{c} đơn đã giao, duyệt sớm team vui',
+    'Có {c} đơn chờ review, nhanh tay nha',
+    '{c} đơn đang ở bước cuối, sếp duyệt là xong',
+    'Team đã ship {c} đơn, chờ sếp feedback',
+    'Ê có {c} đơn mới xong, xem liền không',
+    '{c} đơn cần duyệt, để lâu là tự duyệt đó nha',
+    'Duyệt {c} đơn này là dọn sạch hộp thư',
+    '{c} đơn đang hóng ý kiến của sếp',
+    'Có {c} đơn hoàn thành chờ sếp nghiệm thu',
+    '{c} đơn chờ duyệt, Cún hóng quá',
+    'Sếp có {c} đơn cần xem lại nè',
+    'Team VA đang đợi sếp duyệt {c} đơn',
+  ],
+  req_waiting: [
+    '{c} đơn của sếp đang xếp hàng{pos}. Hôm nay giao thêm gì không?',
+    'Đang có {c} đơn chờ team nhận{pos}',
+    '{c} đơn đang trong hàng{pos}, team sẽ hốt sớm thôi',
+    'Sếp có {c} đơn đang đợi{pos}, Cún canh giùm',
+    '{c} đơn đang xếp hàng{pos}, chill chờ tin nha',
+    'Hàng đợi có {c} đơn của sếp{pos}',
+    '{c} đơn đang chờ đến lượt{pos}',
+    'Có {c} đơn đang trong queue{pos}',
+    '{c} đơn đã vào hàng{pos}, team thấy rồi',
+    'Cún theo dõi {c} đơn của sếp nè{pos}',
+    '{c} đơn đang chờ VA{pos}, gấp thì đánh dấu gấp nha',
+    'Sếp có {c} đơn trong hàng{pos}',
+    '{c} đơn đang xếp hàng ngay ngắn{pos}',
+    'Có {c} đơn chờ nhận{pos}, sắp tới lượt rồi',
+    '{c} đơn đang đứng đợi{pos}',
+    'Hàng đợi đang giữ {c} đơn của sếp{pos}',
+    '{c} đơn sẵn sàng cho team VA{pos}',
+    'Có {c} đơn chờ{pos}, thêm link tham chiếu là team làm nhanh hơn',
+    '{c} đơn đang trong hàng{pos}, Cún báo khi có người nhận',
+    'Cún thấy {c} đơn của sếp đang đợi{pos}',
+  ],
+  req_idle: [
+    'Hôm nay giao gì cho team VA đây sếp? Hay check lại task cũ?',
+    'Cần asset gì cứ order nha, team sẵn sàng',
+    'Không có đơn nào đang chờ, cần gì cứ giao',
+    'Sếp muốn order gì hôm nay?',
+    'Team VA đang rảnh tay, giao việc đi sếp',
+    'Có ý tưởng gì mới không? Order liền',
+    'Mọi đơn đã xong, đỉnh ghê',
+    'Cần icon, banner hay art gì cứ bảo Cún',
+    'Hôm nay có gì cần team vẽ không sếp',
+    'Order mới chỉ mất 1 phút thôi á',
+    'Sếp cứ mô tả tự nhiên, AI giúp viết đơn cho',
+    'Không có gì đang chạy, giao task mới không',
+    'Team VA chờ order của sếp nè',
+    'Cần gì cứ nói, Cún chuyển cho team',
+    'Hôm nay muốn làm gì cho game xịn hơn?',
+    'Chưa có đơn nào đang chạy, chill ghê',
+    'Order đi sếp, team đang hừng hực',
+    'Có gì cần sửa hay làm mới không sếp',
+    'Sếp giao việc là team quẩy liền',
+    'Cún sẵn sàng nhận order của sếp',
+  ],
+  // ---- nhắc nghỉ khi ngồi lâu ----
+  idle: [
+    'Nghỉ tay ăn chuối tí không sếp? 🍌',
+    'Ngồi lâu rồi đó, đứng dậy vươn vai cái nè',
+    'Uống nước chưa sếp? Hydrate đi 💧',
+    'Nhìn xa 20 giây cho mắt nghỉ nha',
+    'Đứng dậy đi vài bước đi, lưng cảm ơn đó',
+    'Break 5 phút rồi quay lại slay tiếp',
+    'Xoay cổ xoay vai cái nè, cứng đơ rồi',
+    'Ăn vặt chút cho có năng lượng 🍪',
+    'Ngồi lâu quá, Cún lo cho cột sống sếp',
+    'Ra cửa sổ hít thở xíu đi',
+    'Nghỉ chút đi, ý tưởng hay hay tới lúc nghỉ',
+    'Mắt mỏi chưa? Chớp mắt vài cái nè',
+    'Pha ly trà đi sếp 🍵',
+    'Duỗi tay duỗi chân cái cho máu lưu thông',
+    'Cún đề xuất một break nhỏ',
+    'Làm nãy giờ giỏi rồi, nghỉ xíu xứng đáng',
+    'Tạm rời màn hình 2 phút nha',
+    'Đi rửa mặt cho tỉnh rồi quay lại',
+    'Đổi tư thế ngồi xíu đi sếp',
+    'Đi lấy nước rồi về làm tiếp nha',
+  ],
+  // ---- khi bấm vào Cún ----
+  peek: [
+    'Quản gia Cún đây, cần gì sếp? 🫡',
+    'Gọi Cún hả? Có liền 👀',
+    'Có Cún đây',
+    'Dạ Cún nghe nè',
+    'Sếp cần gì cứ nói',
+    'Yo, Cún online 24/7',
+    'Có chuyện gì hot hả sếp?',
+    'Cún tới liền đây 🐕',
+    'Gì đó sếp ơi?',
+    'Hỏi gì Cún cũng thử trả lời',
+    'Cún sẵn sàng phục vụ',
+    'Ơi, Cún nè',
+    'Cần Cún check gì không?',
+    'Sếp gọi là Cún có mặt',
+    'Hello, quản gia đây',
+    'Cún đang nghe nè, nói đi',
+    'Có việc gì cần Cún lo không',
+    'Hế lô, cần trợ giúp gì nè',
+    'Cún đây, quẩy tiếp không sếp',
+    'Bấm Cún là có Cún',
+  ],
+  // ---- phản ứng khi đổi trạng thái đơn ----
+  st_in_progress: [
+    'Nhận rồi, quẩy thôi 💪',
+    'Ok let’s go, slay cái đơn này 🚀',
+    'Chốt đơn! Cún note lại rồi nha',
+    'Nhận đơn thành công, chiến thôi',
+    'Vô việc! Cún cổ vũ nè 📣',
+    'Đơn này là của sếp rồi',
+    'Bắt đầu thôi, làm cho cháy',
+    'Nhận rồi, giờ thì tập trung nha',
+    'Locked in 🔒',
+    'Đơn mới vào tay, mood lên liền',
+    'Hốt đơn gọn gàng',
+    'Chiến binh đã nhận nhiệm vụ',
+    'Ok nhận rồi, cần gì cứ hỏi order nha',
+    'Bắt tay vào làm thôi sếp',
+    'Đã nhận, Cún tin đơn này sẽ đẹp',
+    'Let’s cook 🍳',
+    'Nhận đơn, bật nhạc, vào guồng',
+    'Một nhiệm vụ mới bắt đầu',
+    'Đơn đã có chủ, quá đỉnh',
+    'Go go go!',
+  ],
+  st_review: [
+    'Gửi duyệt rồi, ngồi chờ khen thôi 😎',
+    'Ship rồi! Giờ chờ người order gật đầu',
+    'Đã nộp, chờ feedback nha',
+    'Gửi duyệt xong, sếp làm tốt lắm',
+    'Hàng đã giao 📦',
+    'Nộp rồi, giờ thở cái đã',
+    'Đã gửi, hy vọng được Đạt ngay lần đầu',
+    'Submitted ✅',
+    'Gửi rồi, chờ người order phán',
+    'Xong phần mình rồi, chờ duyệt thôi',
+    'Đơn đã lên sóng chờ duyệt',
+    'Nộp bài xong, chill',
+    'Gửi duyệt, Cún cầu may cho sếp 🍀',
+    'Đã chuyển cho order xem rồi',
+    'Bàn giao xong, quá mượt',
+    'Gửi rồi nè, giờ làm đơn khác thôi',
+    'Đã ship, chờ tin vui',
+    'Nộp xong, tự hào ghê',
+    'Hàng xịn đã giao',
+    'Đã gửi, ai mà chê được',
+  ],
+  st_done: [
+    'Xong một đơn! Đỉnh nóc kịch trần 🎉',
+    'Đạt rồi nè, ăn mừng bằng chuối thôi 🍌',
+    'Hoàn thành! Quá slay',
+    'Đơn đã xong, thêm một chiến tích',
+    'Done and dusted ✨',
+    'Đạt luôn, không cần sửa, đỉnh',
+    'Xong rồi! Cún vỗ tay nè 👏',
+    'Thêm một đơn vào bảng vàng',
+    'Hoàn thành xuất sắc nhiệm vụ',
+    'Chốt sổ đơn này, nhẹ cả người',
+    'GG, đơn đã hoàn thành',
+    'Xong việc, sếp xứng đáng được nghỉ',
+    'Đạt! Cún tự hào quá trời',
+    'Một đơn nữa ra lò 🔥',
+    'Mission complete',
+    'Xong rồi, check thêm đơn mới không',
+    'Hoàn thành, team VA quá đỉnh',
+    'Đạt chuẩn, không chỉnh gì luôn',
+    'Ăn mừng nhỏ thôi rồi làm tiếp',
+    'Xong đơn, vibe tốt cả ngày',
+  ],
+  st_changes: [
+    'Chưa đạt hả, ok để team chỉnh lại liền',
+    'Bị trả về rồi, chill đi, sửa phát là xong',
+    'Có feedback rồi, sửa cho đẹp hơn thôi',
+    'Chưa đạt, nhưng gần lắm rồi',
+    'Round 2 nha, lần này chắc chắn đạt',
+    'Feedback là để lên level',
+    'Ok note lại, sửa liền',
+    'Chưa ưng thì mình chỉnh, no problem',
+    'Trả về sửa, đọc kỹ ghi chú nha',
+    'Không sao, sửa xíu là xong',
+    'Đơn quay về, mình xử tiếp',
+    'Chưa đạt, Cún ghi nhận góp ý rồi',
+    'Sửa lần này là chuẩn luôn',
+    'Ai cũng có lúc bị trả, bình thường thôi',
+    'Có chỉnh sửa, mình làm lại cho xịn',
+    'Ok, ý kiến đã được ghi nhận',
+    'Chưa đạt nhưng không sao, keep going',
+    'Feedback tới, sửa nhẹ nhàng thôi',
+    'Trả về rồi, lần sau trúng liền',
+    'Chỉnh xíu nữa là slay',
+  ],
+  st_cancelled: [
+    'Hủy rồi nha, có duyên gặp lại sau 👋',
+    'Đơn đã hủy, bớt một việc',
+    'Ok hủy rồi, lịch sử vẫn giữ nha',
+    'Đơn này tạm biệt nha',
+    'Đã hủy, chuyển qua việc khác thôi',
+    'Hủy xong, nhẹ hàng đợi',
+    'Bye bye đơn này 👋',
+    'Đã hủy, không sao cả',
+    'Đơn đã được hủy gọn gàng',
+    'Ok, gạch đơn này khỏi danh sách',
+    'Hủy rồi, cần làm lại thì order mới nha',
+    'Đơn này không cần nữa, hiểu rồi',
+    'Đã hủy, tập trung đơn khác',
+    'Tạm biệt, hẹn gặp lại ở đơn sau',
+    'Hủy thành công',
+    'Đơn đã nghỉ hưu sớm',
+    'Hủy rồi, hàng đợi gọn hơn',
+    'Ok, bỏ qua đơn này',
+    'Đã hủy, Cún cập nhật rồi',
+    'Đơn này xong nhiệm vụ… bằng cách bị hủy',
+  ],
+  st_created: [
+    'Đơn vào hàng rồi! Team VA thấy rồi đó 📬',
+    'Gửi thành công, giờ chill chờ tin nha',
+    'Order đã lên, team sẽ hốt sớm',
+    'Đơn mới vào hàng đợi ✨',
+    'Gửi rồi, Cún báo team liền',
+    'Ok đơn đã tạo, ngồi chờ thôi',
+    'Order thành công, quá nhanh',
+    'Đơn mới đã sẵn sàng cho VA',
+    'Đã nhận order, cảm ơn sếp',
+    'Đơn đã vào queue, mượt ghê',
+    'Gửi thành công, xem vị trí trong hàng nha',
+    'Order mới tinh đã tới tay team',
+    'Đơn đã xếp hàng ngay ngắn',
+    'Xong bước order, giờ để team lo',
+    'Đơn của sếp đã được ghi nhận',
+    'Order đã lên sóng 📡',
+    'Đơn mới vào rồi, team hóng',
+    'Cảm ơn order, team sẽ làm thật xịn',
+    'Đã gửi, có gì Cún báo nha',
+    'Order thành công, sếp đỉnh',
+  ],
+  st_error: [
+    'Ơ, có gì đó sai sai… thử lại giúp Cún nha',
+    'Toang nhẹ rồi, thử lại phát nữa xem',
+    'Lỗi rồi sếp ơi, bấm lại thử nha',
+    'Hmm, chưa lưu được, thử lại nha',
+    'Có trục trặc xíu, Cún xin lỗi',
+    'Mạng lag hay sao á, thử lại nha',
+    'Oops, lỗi rồi 😵',
+    'Chưa được, đọc thông báo lỗi giúp Cún nha',
+    'Không thành công, thử lại sau xíu',
+    'Lỗi nhẹ, đừng hoảng',
+    'Bị lỗi rồi, kiểm tra lại thông tin nha',
+    'Ui, sai sai đâu đó',
+    'Hệ thống dỗi xíu, thử lại nha',
+    'Không lưu được, Cún cũng bất ngờ',
+    'Lỗi rồi, refresh thử xem',
+    'Có gì đó không ổn, thử lại nha sếp',
+    'Error 404 tinh thần, thử lại nha',
+    'Hụt rồi, làm lại phát nữa',
+    'Chưa ổn, check kết nối thử nha',
+    'Lỗi xíu thôi, sếp bình tĩnh',
+  ],
+  // ---- đang xử lý ----
+  checking: [
+    'Để Cún check cái…',
+    'Đợi xíu, Cún lục sổ…',
+    'Cún xem liền nè…',
+    'Để Cún soi thử…',
+    'Check nhanh nha…',
+    'Cún đang tra…',
+    'Một giây thôi…',
+    'Để Cún lật lại hồ sơ…',
+    'Đang kiểm tra nè…',
+    'Cún mở sổ ra xem…',
+    'Từ từ, Cún đếm lại…',
+    'Đợi Cún tí xíu…',
+    'Cún đang lướt danh sách…',
+    'Loading não Cún…',
+    'Để xem có gì nào…',
+    'Cún tra cứu liền…',
+    'Đang soát task nè…',
+    'Chờ Cún xíu nha…',
+    'Cún đi lấy dữ liệu…',
+    'Check check…',
+  ],
+  thinking: [
+    'Đợi xíu, Cún đang nghĩ…',
+    'Để Cún suy nghĩ cái…',
+    'Cún đang load ý tưởng…',
+    'Hmm, câu hay đó, đợi Cún tí…',
+    'Đang hỏi bộ não AI…',
+    'Cún đang vắt óc…',
+    'Một chút thôi, đang xử lý…',
+    'Đang nghĩ câu trả lời xịn…',
+    'Cún đang brainstorm…',
+    'Để Cún phân tích xíu…',
+    'Đang suy luận nè…',
+    'Câu này cần nghĩ kỹ…',
+    'Cún đang tổng hợp…',
+    'AI đang chạy, đợi xíu…',
+    'Đang nấu câu trả lời 🍳',
+    'Chờ Cún tí, sắp xong…',
+    'Đang xem xét dữ liệu…',
+    'Cún đang sắp xếp ý…',
+    'Hơi khó, Cún cần vài giây…',
+    'Đang tính toán nè…',
+  ],
+  stuck: [
+    'Ơ, Cún bí rồi 😵',
+    'Câu này khó quá, Cún chịu',
+    'Cún chưa trả lời được, thử hỏi kiểu khác nha',
+    'Bí ý tưởng rồi sếp ơi',
+    'Hmm, AI đang dỗi, thử lại nha',
+    'Cún tắc rồi, hỏi lại giúp nha',
+    'Không ra câu trả lời, xin lỗi sếp',
+    'Não Cún lag rồi 😵‍💫',
+    'Chưa được, thử lại sau xíu',
+    'Cún hết cứu, thử trang Trợ lý AI nha',
+    'Lỗi rồi, Cún không nghĩ ra',
+    'Hỏi khó quá Cún đứng hình',
+    'AI không phản hồi, thử lại nha',
+    'Cún xin thua câu này',
+    'Bí thật sự, hỏi ngắn gọn hơn thử nha',
+    'Cún mù tịt rồi',
+    'Câu hỏi hay nhưng Cún chưa trả lời được',
+    'Kết nối AI có vấn đề rồi',
+    'Cún cần nghỉ xíu rồi thử lại',
+    'Oops, Cún bí',
+  ],
+  // ---- màn hình đăng nhập ----
+  login: [
+    'Ê, đăng nhập đi rồi mình nói chuyện tiếp 👀',
+    'Hello! Nay giao task gì đây?',
+    'Quản gia Cún đứng cửa đón sếp nè 🫡',
+    'Vô nhanh đi, hàng đợi đang chờ',
+    'Đăng nhập cái là có Cún phục vụ liền',
+    'Ai đó? Xưng danh đi rồi Cún mở cửa 🚪',
+    'Welcome! Nhập email vô nha',
+    'Lại gặp nhau rồi, vô làm việc thôi',
+    'Cún đã dọn sẵn bàn làm việc rồi đó',
+    'Sếp tới rồi hả? Login lẹ lẹ',
+    'Cửa mở rồi, mời sếp vào ✨',
+    'Hôm nay team mình slay tiếp nha',
+    'Không login là Cún không cho qua đâu 🙅',
+    'Nhập email đi, Cún hứa không spam',
+    'Chào mừng tới VA Tasks, nơi deadline được thuần hóa',
+    'Login đi rồi Cún báo cáo tình hình',
+    'Cún chờ sếp từ sáng tới giờ đó',
+    'Ủa ai đẹp trai/xinh gái vậy ta, đăng nhập đi 😳',
+    'Vào ca thôi, hôm nay nhiều chuyện vui lắm',
+    'Gõ email, bấm gửi, vậy thôi, dễ ẹc',
+    'Quét thẻ nhân viên đi sếp 🪪',
+    'Hello hello, sẵn sàng quẩy chưa',
+  ],
+  login_code: [
+    'Check mail lấy mã đi nè 📬',
+    'Mã đã bay vào hộp thư rồi đó',
+    'Mở mail ra, mã đang đợi sếp',
+    'Không thấy mã thì xem thử mục Spam nha',
+    'Mã 6 số, gõ cho đúng nha',
+    'Cún gửi mã rồi, nhanh tay kẻo hết hạn',
+    'Check inbox đi sếp 👀',
+    'Mã đang trên đường tới, đợi xíu',
+    'Nhập mã là vô liền',
+    'Mail tới chưa? Cún hồi hộp ghê',
+    'Mã bí mật đã gửi, đừng share ai nha 🤫',
+    'Một bước nữa thôi là vào rồi',
+    'Lục mail tìm mã nha',
+    'Có mã chưa? Gõ vô đi',
+    'Mã nằm trong mail của sếp đó',
+    'Copy mã rồi dán vô cho lẹ',
+    'Sắp vào rồi, ráng xíu',
+    'Mail của VA Tasks đó, mở ra nha',
+    'Mã đây mã đây, check mail liền',
+    'Nhập mã xong là Cún mở cửa',
+  ],
+  login_error: [
+    'Ơ, trục trặc xíu rồi…',
+    'Hmm, có gì đó sai sai',
+    'Lỗi rồi, thử lại nha sếp',
+    'Không vào được, check lại email nha',
+    'Oops, chưa đăng nhập được 😵',
+    'Mã sai hay hết hạn rồi á',
+    'Toang nhẹ, thử lại phát nữa',
+    'Cún không mở cửa được, xem thông báo lỗi nha',
+    'Có vấn đề rồi, thử lại sau xíu',
+    'Đăng nhập chưa thành công',
+    'Kiểm tra mạng giúp Cún nha',
+    'Sai đâu đó rồi, bình tĩnh thử lại',
+    'Hệ thống dỗi rồi, thử lại nha',
+    'Ui, lỗi rồi sếp ơi',
+    'Chưa qua được cửa, thử lại nha',
+    'Email này chưa có trong team á?',
+    'Cún bối rối quá, thử lại giúp',
+    'Lỗi nhỏ thôi, đừng lo',
+    'Không ổn rồi, xem kỹ lại nha',
+    'Thử lại lần nữa, Cún tin sếp',
+  ],
+  // ---- bấm vào Cún ở màn hình đăng nhập: càng chọc càng gắt ----
+  poke1: [
+    'Ê ê, chọc Cún làm gì đó 😳',
+    'Ủa? Bấm Cún chi vậy',
+    'Nhột á nha!',
+    'Hi, cần gì hả? Đăng nhập đi kìa',
+    'Cún đang làm việc mà 👀',
+    'Gâu? Gọi Cún hả',
+    'Thích Cún lắm hả, biết rồi 😌',
+    'Ơ kìa, tay ai nghịch vậy',
+    'Bấm nhẹ thôi, Cún mong manh',
+    'Ủa chọc Cún là vô app được hả?',
+    'Hello, nhưng ô đăng nhập ở dưới cơ',
+    'Cún thấy rồi nha 👁️',
+    'Chọc gì chọc hoài',
+    'Ê, tập trung login đi',
+    'Hihi nhột, thôi đủ rồi',
+    'Có gì vui đâu mà bấm',
+    'Cún không phải nút đăng nhập đâu nha',
+    'Bị chọc là Cún mắc cỡ đó 😳',
+    'Gì vậy trời, đang đứng yên mà',
+    'Ủa, rảnh dữ ha',
+  ],
+  poke2: [
+    'Nói rồi đó, đừng chọc nữa 😤',
+    'Chọc nữa là Cún dỗi á nha',
+    'Ê thôi nha, Cún bắt đầu quạu rồi',
+    'Lần thứ mấy rồi đó? Ngưng tay!',
+    'Cún cảnh cáo lần một ⚠️',
+    'Chọc nữa Cún méc sếp à nha',
+    'Đủ rồi đó, đăng nhập đi',
+    'Cún đang nhịn đó, đừng thử thách',
+    'Gừ… nghe tiếng gừ chưa 😠',
+    'Bấm nữa là có chuyện á',
+    'Cún hết vui rồi đó nha',
+    'Ủa không nghe Cún nói hả',
+    'Thôi đi mà, Cún xin đó',
+    'Răng Cún bắt đầu ngứa rồi nha 🦷',
+    'Cún đếm tới ba nha, một… hai…',
+    'Ngón tay đó sắp gặp nguy hiểm',
+    'Cún không có hiền như vẻ ngoài đâu',
+    'Chọc nữa Cún bỏ đi, không đón sếp nữa',
+    'Tay hư quá nha, Cún ghi sổ rồi 📒',
+    'Cảnh báo vàng 🟨',
+  ],
+  poke3: [
+    'CHỌC NỮA LÀ CẮN Á! 🦷😡',
+    'Gâu gâu! Cắn thiệt đó!',
+    'Hết kiên nhẫn rồi, Cún cắn nè 😤🦷',
+    'Thẻ đỏ! Cún cắn tay luôn 🟥',
+    'Ngoạm! Đã bảo rồi mà 😠',
+    'Cún cắn một phát cho chừa nha',
+    'GRRR… đăng nhập NGAY không thì cắn',
+    'Cún mở mồm rồi đó, rút tay lẹ',
+    'Cắn! Cắn! Cắn! 🐕💢',
+    'Ai bảo không nghe, giờ ráng chịu',
+    'Cún hóa thú rồi, cẩn thận 🐺',
+    'Bị cắn rồi đó, có đau không? Đáng đời 😤',
+    'Tay này Cún đánh dấu rồi nha 🦷',
+    'Chọc chó dữ là có hậu quả á',
+    'Thôi Cún cắn luôn cho nhanh',
+    'Đây là lời cảnh báo cuối cùng… à không, cắn luôn',
+    'GÂU! Chạy đi trước khi quá muộn',
+    'Cún mất bình tĩnh rồi, đừng lại gần',
+    'Ngoạm cái cho nhớ đời 😡',
+    'Đã bảo chọc nữa là cắn mà, giờ thì sao',
+  ],
+};
+
+// ============================================================================
 // Bạn đồng hành (mascot) — chào khi vào app, gợi ý việc tiếp theo, phản ứng theo
 // thao tác. Câu thoại viết sẵn + số liệu thật (không tốn lượt AI). VA hỏi tự do
 // thì chuyển sang Trợ lý AI (DeepSeek).
 // Ảnh nhân vật do team cung cấp (ASSETS.*); chỉ dùng nội bộ.
 // ============================================================================
+// Cún = quản gia của team VA, nói chuyện kiểu GenZ. Chỉ dùng nội bộ.
 const BUDDY_NAME = 'Cún';
 const Buddy = {
   el: null, open: false, mood: 'wave', line: '', sub: '', chips: [], typing: null, hideTimer: null, idleTimer: null,
@@ -5753,22 +6509,35 @@ const Buddy = {
 };
 const MOOD_IMG = () => ({ wave: ASSETS.mascotWave, smile: ASSETS.mascotSmile, tired: ASSETS.mascotTired, snack: ASSETS.mascotSnack });
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// "Xáo bài": nói hết cả nhóm câu (thứ tự ngẫu nhiên) rồi mới lặp lại; nhớ qua lần tải trang.
+const BAG_MEM = {};
+function say(key, vars) {
+  const pool = BUDDY_LINES[key] || [];
+  if (!pool.length) return '';
+  const lk = 'va.buddy.bag.' + key;
+  let bag = BAG_MEM[key];
+  if (!bag) { try { bag = JSON.parse(LS.raw(lk) || 'null'); } catch (e) { bag = null; } }
+  if (!bag || !Array.isArray(bag.q) || bag.n !== pool.length) bag = { n: pool.length, q: [], last: -1 };
+  if (!bag.q.length) {
+    bag.q = pool.map((_, i) => i);
+    for (let i = bag.q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag.q[i], bag.q[j]] = [bag.q[j], bag.q[i]]; }
+    if (bag.q.length > 1 && bag.q[0] === bag.last) bag.q.push(bag.q.shift()); // không lặp câu vừa nói khi sang vòng mới
+  }
+  const i = bag.q.shift(); bag.last = i; BAG_MEM[key] = bag;
+  try { LS.setRaw(lk, JSON.stringify(bag)); } catch (e) { /* bộ nhớ trình duyệt bị chặn: vẫn chạy trong phiên */ }
+  return pool[i].replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? String(vars[k]) : ''));
+}
 const buddyOff = () => LS.raw('va.buddy.off') === '1';
 const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function firstName(n) { const p = trim(n).split(/\s+/); return p[p.length - 1] || 'bạn'; }
 function timeGreeting() {
   const h = new Date().getHours();
-  if (h < 5) return pick(['Khuya lắm rồi đó nha 😴', 'Giờ này còn thức, đúng là chiến thần']);
-  if (h < 11) return pick(['Chào buổi sáng nha ☀️', 'Sáng rồi nè, cà phê chưa?', 'Morning! Hôm nay chill hay cháy?']);
-  if (h < 13) return pick(['Trưa rồi, ăn gì chưa đó?', 'Giờ trưa nè, nạp năng lượng chưa?']);
-  if (h < 18) return pick(['Chiều rồi, cố thêm xíu nữa thôi 💪', 'Buổi chiều vui vẻ nha']);
-  if (h < 22) return pick(['Tối rồi mà vẫn on app, chăm dữ ta 👀', 'Buổi tối an lành nha']);
-  return pick(['Khuya rồi đó, làm lẹ rồi đi ngủ nha 😴', 'Cú đêm online rồi đây']);
+  return say(h < 5 ? 'night' : h < 11 ? 'morning' : h < 13 ? 'noon' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night');
 }
 function hello(u) {
   const n = firstName(u.name);
-  return pick([`Ê chào ${n}! ${timeGreeting()}`, `Xin chào cục cưng ${n} 👋 ${timeGreeting()}`, `${n} tới rồi kìa! ${timeGreeting()}`]);
+  return `${say('hello', { n })} ${timeGreeting()}`;
 }
 
 // ---------- what to say, from real data ----------
@@ -5783,23 +6552,23 @@ function buddyContext() {
     let queue = [];
     try { queue = Rules.queueSort(S.tasks.filter((t) => !t._tmp && !onHold(t)), today(), S.config.priorities) || []; } catch (e) { queue = []; }
     const top = queue[0];
-    if (overdue.length) { out.mood = 'tired'; out.sub = `Ơ… có ${overdue.length} đơn trễ hạn rồi á. Gỡ từng cái nha, không sao đâu.`; }
-    else if (fix.length) { out.mood = 'smile'; out.sub = `Có ${fix.length} đơn bị trả về sửa nè — xử lý trước cho nhẹ đầu nha.`; }
-    else if (top) { out.mood = 'smile'; out.sub = `Đầu hàng đang là ${top.id} – “${top.name}”. Nhận luôn không?`; }
-    else { out.mood = 'snack'; out.sub = 'Hàng đợi trống trơn. Hiếm lắm đó, tận hưởng đi 🍌'; }
-    if (u.isOwner && S.aiEnabled === false) out.sub += ' À, chưa có API key DeepSeek nha sếp — dán vào là mình khôn hẳn.';
+    if (overdue.length) { out.mood = 'tired'; out.sub = say('overdue', { c: overdue.length }); }
+    else if (fix.length) { out.mood = 'smile'; out.sub = say('fix', { c: fix.length }); }
+    else if (top) { out.mood = 'smile'; out.sub = say('top', { id: top.id, name: top.name }); }
+    else { out.mood = 'snack'; out.sub = say('empty'); }
+    if (u.isOwner && S.aiEnabled === false) out.sub += say('nokey');
     out.chips = [];
     if (top) out.chips.push({ k: 'claim-top', t: 'Hôm nay làm gì trước?' });
-    out.chips.push({ k: 'my-tasks', t: 'Kiểm tra task của tôi' });
+    out.chips.push({ k: 'my-tasks', t: 'Check task của tôi' });
     if (S.aiEnabled !== false) out.chips.push({ k: 'ai-plan', t: 'Nhờ AI xếp lịch' });
     out.chips.push({ k: 'new', t: 'Giao task mới' });
   } else {
     const own = S.tasks.filter(isOwnOrder);
     const review = own.filter((t) => statusKey(t) === 'review');
     const waiting = own.filter((t) => colKey(t) === 'new');
-    if (review.length) { out.mood = 'smile'; out.sub = `Có ${review.length} đơn đang chờ bạn duyệt nè. Duyệt lẹ để team VA chạy tiếp nha 🙏`; }
-    else if (waiting.length) { const pos = Math.min(...waiting.map((t) => (queueInfoOf(t) || {}).position || 999)); out.sub = `${waiting.length} đơn của bạn đang xếp hàng${pos < 999 ? `, sớm nhất ở vị trí #${pos}` : ''}. Hôm nay tính giao thêm task gì không?`; }
-    else out.sub = 'Hôm nay tính giao task gì cho team VA đây? Hay muốn kiểm tra task cũ?';
+    if (review.length) { out.mood = 'smile'; out.sub = say('req_review', { c: review.length }); }
+    else if (waiting.length) { const pos = Math.min(...waiting.map((t) => (queueInfoOf(t) || {}).position || 999)); out.sub = say('req_waiting', { c: waiting.length, pos: pos < 999 ? `, sớm nhất ở vị trí #${pos}` : '' }); }
+    else out.sub = say('req_idle');
     out.chips = [{ k: 'new', t: 'Giao task mới' }, { k: 'mine', t: 'Kiểm tra task' }];
     if (review.length) out.chips.unshift({ k: 'review', t: `Duyệt ${review.length} đơn ngay` });
   }
@@ -5811,7 +6580,7 @@ function buddyContext() {
 function buddyHtml() {
   const B = Buddy;
   const img = MOOD_IMG()[B.mood] || ASSETS.mascotWave;
-  return `<button type="button" class="buddy-ava" data-buddy="toggle" aria-expanded="${B.open}" aria-label="${B.open ? 'Thu nhỏ' : 'Mở'} ${BUDDY_NAME} — bạn đồng hành" title="${BUDDY_NAME}"><img src="${img}" alt="" draggable="false"></button>
+  return `<button type="button" class="buddy-ava" data-buddy="toggle" aria-expanded="${B.open}" aria-label="${B.open ? 'Thu nhỏ' : 'Mở'} ${BUDDY_NAME} — quản gia của team VA" title="${BUDDY_NAME}"><img src="${img}" alt="" draggable="false"></button>
     ${B.open ? `<aside class="buddy-bubble" aria-label="${BUDDY_NAME} nói" data-testid="buddy-bubble">
       <button type="button" class="icon-btn icon-btn-sm buddy-x" data-buddy="close" aria-label="Đóng">${ICONS.x}</button>
       <p class="buddy-line" aria-live="polite"><b>${esc(B.line)}</b></p>
@@ -5875,23 +6644,20 @@ function armIdle() {
   Buddy.idleTimer = setTimeout(() => {
     if (!S.user || Buddy.open || document.hidden) { armIdle(); return; }
     Buddy.snacked = true;
-    buddySay({ mood: 'snack', line: pick(['Nghỉ tay ăn chuối tí không? 🍌', 'Ngồi lâu rồi đó, đứng dậy vươn vai cái nè']), sub: '', chips: [], autoHide: 7000 });
+    buddySay({ mood: 'snack', line: say('idle'), sub: '', chips: [], autoHide: 7000 });
   }, 4 * 60 * 1000);
 }
 
 // ---------- reactions to what just happened ----------
 const REACT = {
-  in_progress: { mood: 'smile', lines: ['Chiến thôi! 💪', 'Nhận rồi nha, quẩy đi', 'Ok let’s go 🚀'] },
-  review: { mood: 'smile', lines: ['Gửi duyệt rồi, ngồi chờ khen thôi 😎', 'Đã ship! Giờ chờ người order gật đầu'] },
-  done: { mood: 'snack', lines: ['Xong một đơn! Ăn mừng bằng chuối 🍌', 'Đạt rồi nè, đỉnh nóc kịch trần 🎉'] },
-  changes_requested: { mood: 'tired', lines: ['Ok, mình báo VA sửa liền', 'Chưa đạt hả… để team chỉnh lại nha'] },
-  cancelled: { mood: 'tired', lines: ['Đã hủy. Có duyên gặp lại sau nha'] },
-  created: { mood: 'wave', lines: ['Đơn đã vào hàng! Team VA thấy rồi đó 📬', 'Gửi thành công! Giờ chill chờ tin nha'] },
-  error: { mood: 'tired', lines: ['Ơ, có gì đó sai sai… thử lại giúp mình nha', 'Toang nhẹ rồi, thử lại phát nữa xem'] },
+  in_progress: { mood: 'smile', key: 'st_in_progress' }, review: { mood: 'smile', key: 'st_review' },
+  done: { mood: 'snack', key: 'st_done' }, changes_requested: { mood: 'tired', key: 'st_changes' },
+  cancelled: { mood: 'tired', key: 'st_cancelled' }, created: { mood: 'wave', key: 'st_created' },
+  error: { mood: 'tired', key: 'st_error' },
 };
 function buddyReact(kind) {
   const r = REACT[kind]; if (!r || buddyOff() || !S.user) return;
-  buddySay({ mood: r.mood, line: pick(r.lines), sub: '', chips: [], autoHide: 4500 });
+  buddySay({ mood: r.mood, line: say(r.key), sub: '', chips: [], autoHide: 4500 });
   armIdle();
 }
 
@@ -5925,7 +6691,7 @@ function myTasksAnswer() {
   const list = isVA()
     ? (Rules.myWorkSort(S.tasks, myName(), today(), S.config.priorities) || [])
     : S.tasks.filter((t) => isOwnOrder(t) && Rules.isOpen(t));
-  if (!list.length) return { sub: isVA() ? 'Bạn chưa nhận việc nào. Đơn đầu hàng đang đợi đó!' : 'Bạn chưa có đơn nào đang chạy.', answer: null };
+  if (!list.length) return { sub: isVA() ? 'Sếp chưa nhận việc nào nè. Đơn đầu hàng đang đợi đó!' : 'Bạn chưa có đơn nào đang chạy.', answer: null };
   const rows = list.slice(0, 4).map((t) => `<li><button type="button" class="id-link" data-buddy-open="${esc(t.id)}">${esc(t.id)}</button> ${esc(t.name)} <span class="muted">· ${esc(statusLabelOf(t))}${trim(t.deadline) ? ' · hạn ' + esc(fmtDM(t.deadline)) : ''}</span></li>`).join('');
   return { sub: `Bạn có ${list.length} đơn đang chạy:`, answer: `<ul>${rows}</ul>${list.length > 4 ? `<p class="muted">…và ${list.length - 4} đơn nữa</p>` : ''}` };
 }
@@ -5941,13 +6707,13 @@ function onBuddyChip(k) {
       setTimeout(() => { const r = document.querySelector('[data-testid^="queue-row-"]'); if (r) { r.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); r.classList.add('is-spot'); r.focus({ preventScroll: true }); setTimeout(() => r.classList.remove('is-spot'), 2400); } }, 120);
       return;
     }
-    case 'my-tasks': { const a = myTasksAnswer(); Object.assign(Buddy, { mood: 'smile', line: 'Để mình xem nè…', sub: a.sub, chips: [{ k: 'later', t: 'Ok' }] }); renderBuddy(); if (a.answer) { Buddy.answer = a.answer; renderBuddy(); } return; }
+    case 'my-tasks': { const a = myTasksAnswer(); Object.assign(Buddy, { mood: 'smile', line: say('checking'), sub: a.sub, chips: [{ k: 'later', t: 'Ok' }] }); renderBuddy(); if (a.answer) { Buddy.answer = a.answer; renderBuddy(); } return; }
     default: break;
   }
 }
 async function buddyAsk(q) {
   if (Buddy.busy || q.length < 3 || !guardOnline()) return;
-  Buddy.busy = true; Buddy.line = 'Để mình nghĩ xíu…'; Buddy.sub = q; Buddy.answer = null; Buddy.chips = []; renderBuddy();
+  Buddy.busy = true; Buddy.line = say('thinking'); Buddy.sub = q; Buddy.answer = null; Buddy.chips = []; renderBuddy();
   try {
     const r = await S.api.aiAssist({ mode: 'ask', question: q }, auth());
     AiUi.thread.push({ role: 'user', text: q }, { role: 'ai', r });
@@ -5955,11 +6721,11 @@ async function buddyAsk(q) {
     Buddy.mood = (r.risks || []).some((x) => x.level === 'high') ? 'tired' : 'smile';
     Buddy.line = 'Nè:'; Buddy.sub = '';
     Buddy.answer = aiTextHtml(txt.length > 420 ? txt.slice(0, 420) + '…' : txt);
-    Buddy.chips = [{ k: 'ai-full', t: 'Xem đầy đủ' }, { k: 'later', t: 'Cảm ơn nha' }];
+    Buddy.chips = [{ k: 'ai-full', t: 'Xem đầy đủ' }, { k: 'later', t: 'Oke cảm ơn' }];
   } catch (e0) {
     const e = toApiError(e0);
     if (e.code === 'UNAUTHORIZED') { Buddy.busy = false; App.onUnauthorized(); return; }
-    Buddy.mood = 'tired'; Buddy.line = 'Ơ, mình bí rồi…'; Buddy.sub = e.message; Buddy.chips = [{ k: 'later', t: 'Ok' }];
+    Buddy.mood = 'tired'; Buddy.line = say('stuck'); Buddy.sub = e.message; Buddy.chips = [{ k: 'later', t: 'Ok' }];
   }
   Buddy.busy = false; renderBuddy();
 }
@@ -5975,7 +6741,7 @@ function bindBuddy() {
       if (b.dataset.buddy === 'close') { buddyClose(); return; }
       if (Buddy.open) { buddyClose(); return; }
       const ctx = buddyContext();
-      buddySay({ mood: ctx.mood, line: pick([`${BUDDY_NAME} đây! Cần gì nè?`, 'Gọi mình hả? 👀', 'Có mình đây']), sub: ctx.sub, chips: ctx.chips });
+      buddySay({ mood: ctx.mood, line: say('peek'), sub: ctx.sub, chips: ctx.chips });
       return;
     }
     const c = t.closest('[data-buddy-chip]');
@@ -5990,6 +6756,26 @@ function bindBuddy() {
     if (Buddy.open && !el.contains(e.target)) buddyClose();
   }, true);
 }
+
+// ---------- màn hình đăng nhập: bấm vào Cún → câu trêu, càng chọc càng gắt ----------
+const LoginPoke = { n: 0, reset: null };
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('[data-lg-poke]');
+  if (!btn) return;
+  const box = btn.closest('.lg-mascot'); const bubble = box && box.querySelector('.lg-say'); const img = btn.querySelector('img');
+  LoginPoke.n += 1;
+  const lvl = LoginPoke.n <= 2 ? 1 : LoginPoke.n <= 4 ? 2 : 3;
+  if (bubble) {
+    bubble.textContent = say('poke' + lvl);
+    bubble.classList.remove('is-pop'); void bubble.offsetWidth; bubble.classList.add('is-pop');
+    bubble.classList.toggle('is-angry', lvl === 3);
+  }
+  if (img) {
+    img.src = lvl === 1 ? ASSETS.mascotSmile : ASSETS.mascotTired;
+    btn.classList.remove('is-shake', 'is-bite'); void btn.offsetWidth; btn.classList.add(lvl === 3 ? 'is-bite' : 'is-shake');
+  }
+  clearTimeout(LoginPoke.reset); LoginPoke.reset = setTimeout(() => { LoginPoke.n = 0; }, 8000); // để yên 8 giây là Cún nguôi
+});
 
 // ============================================================================
 // Drawer (order detail)
@@ -6208,6 +6994,7 @@ function drawerHtml(d) {
     : roField(key, label, trim(o.text != null ? o.text : t[key]) ? `<span class="ro-text">${esc(o.text != null ? o.text : t[key])}</span>` : '<span class="dash">—</span>', o));
   const details = `
     ${summary}
+    <div class="detail-grid"><div class="detail-main">
     <fieldset class="fieldset" ${d.deleted ? 'disabled' : ''}><legend>Yêu cầu</legend><div class="form-grid">
       ${fld('description', 'Cần làm gì', `<textarea id="df-description" data-k="description" data-testid="drawer-field-description" rows="3" class="autosize">${esc(t.description)}</textarea>`, { span: true })}
       ${fld('usage', 'Mục đích sử dụng', `<textarea id="df-usage" data-k="usage" data-testid="drawer-field-usage" rows="1" class="autosize" maxlength="1000">${esc(t.usage)}</textarea>`, { span: true })}
@@ -6219,7 +7006,18 @@ function drawerHtml(d) {
       ${fld('project', 'Dự án', `<select id="df-project" data-k="project" data-testid="drawer-field-project">${catalogSelectOptions(S.config.projects, t.project)}</select>`)}
       ${fld('team', 'Team', `<select id="df-team" data-k="team" data-testid="drawer-field-team">${catalogSelectOptions(S.config.teams, t.team)}</select>`)}
     </div></fieldset>
-    <fieldset class="fieldset" ${d.deleted ? 'disabled' : ''}><legend>Xếp hàng & phân công</legend><div class="form-grid">
+    ${pc || parent || trim(o.parentId) ? `<fieldset class="fieldset"><legend>Chia đợt</legend>
+      ${trim(o.parentId) ? `<p class="ro-line">Thuộc đơn <a href="#/task/${encodeURIComponent(o.parentId)}" data-testid="drawer-parent-link">${esc(o.parentId)}</a>${parent ? ` · ${esc(parent.name)}` : ''}</p>` : ''}
+      ${pc ? `<p class="ro-line" data-testid="drawer-split-progress">Đã chia ${pc.total} đợt · ${pc.done}/${pc.total} xong${pc.allDone ? ' — đơn gốc tự Hoàn thành' : ''}</p>
+        ${kids.length ? `<ul class="child-list">${kids.map((c) => `<li><a href="#/task/${encodeURIComponent(c.id)}" class="child-link" data-testid="drawer-child-${esc(c.id)}"><span class="mono">${esc(c.id)}</span><span class="cname">${esc(c.name)}</span>${sizeBadge(c)}${statusPill(c)}</a></li>`).join('')}</ul>` : ''}` : ''}
+    </fieldset>` : ''}
+    <fieldset class="fieldset" ${d.deleted ? 'disabled' : ''}><legend>Bàn giao</legend><div class="form-grid">
+      ${linkField(d, 'deliveryLink', 'Link kết quả', va && ed('deliveryLink'))}
+      ${va && ed('notes') ? fieldWrap('notes', 'Ghi chú / feedback', `<textarea id="df-notes" data-k="notes" data-testid="drawer-field-notes" rows="3" class="autosize">${esc(t.notes)}</textarea>`, { span: true }) : (trim(o.notes) ? roField('notes', 'Ghi chú / feedback', `<div class="notes-ro">${linkify(o.notes)}</div>`, { span: true }) : '')}
+    </div></fieldset>
+    ${can('delete', o).ok ? `<div class="danger-zone"><span>Không làm nữa? Dùng “Hủy đơn” để giữ lại lịch sử.</span><button type="button" class="btn btn-sm btn-danger-text" data-testid="action-delete" data-act="delete" data-write ${d.deleted ? 'disabled' : ''}>${ICONS.trash}Xóa đơn</button></div>` : ''}
+    </div><aside class="detail-side" aria-label="Phân công & hạn">
+    <fieldset class="fieldset" ${d.deleted ? 'disabled' : ''}><legend>Phân công & hạn</legend><div class="form-grid is-side">
       ${va || !ed('priority')
         ? roField('priority', 'Ưu tiên', `${effPrioHtml(o)}${ep.escalated && colKey(o) === 'new' ? `<span class="muted"> · gốc ${esc(o.priority || '—')}</span>` : ''}${va && can('setPriority', o).ok ? `<button type="button" class="btn btn-sm btn-ghost" data-act="prio" data-testid="action-priority" data-write>Đổi</button>` : ''}`)
         : fieldWrap('priority', 'Ưu tiên', `<select id="df-priority" data-k="priority" data-testid="drawer-field-priority">${reqPrioOpts()}</select>`)}
@@ -6233,16 +7031,7 @@ function drawerHtml(d) {
       ${roField('revisionCount', 'Số lần sửa', `${esc(Number(o.revisionCount) || 0)}${discuss(o) ? ' <span class="flag is-discuss">Cần thảo luận</span>' : ''}`)}
       ${trim(o.reviewDate) ? roField('reviewDate', 'Ngày gửi duyệt', `${esc(fmtDate(o.reviewDate))}${aad ? `<div class="ro-sub" data-testid="drawer-auto-approve">Tự duyệt sau: ${esc(fmtDM(aad))}</div>` : ''}`) : ''}
     </div></fieldset>
-    ${pc || parent || trim(o.parentId) ? `<fieldset class="fieldset"><legend>Chia đợt</legend>
-      ${trim(o.parentId) ? `<p class="ro-line">Thuộc đơn <a href="#/task/${encodeURIComponent(o.parentId)}" data-testid="drawer-parent-link">${esc(o.parentId)}</a>${parent ? ` · ${esc(parent.name)}` : ''}</p>` : ''}
-      ${pc ? `<p class="ro-line" data-testid="drawer-split-progress">Đã chia ${pc.total} đợt · ${pc.done}/${pc.total} xong${pc.allDone ? ' — đơn gốc tự Hoàn thành' : ''}</p>
-        ${kids.length ? `<ul class="child-list">${kids.map((c) => `<li><a href="#/task/${encodeURIComponent(c.id)}" class="child-link" data-testid="drawer-child-${esc(c.id)}"><span class="mono">${esc(c.id)}</span><span class="cname">${esc(c.name)}</span>${sizeBadge(c)}${statusPill(c)}</a></li>`).join('')}</ul>` : ''}` : ''}
-    </fieldset>` : ''}
-    <fieldset class="fieldset" ${d.deleted ? 'disabled' : ''}><legend>Bàn giao</legend><div class="form-grid">
-      ${linkField(d, 'deliveryLink', 'Link kết quả', va && ed('deliveryLink'))}
-      ${va && ed('notes') ? fieldWrap('notes', 'Ghi chú / feedback', `<textarea id="df-notes" data-k="notes" data-testid="drawer-field-notes" rows="3" class="autosize">${esc(t.notes)}</textarea>`, { span: true }) : (trim(o.notes) ? roField('notes', 'Ghi chú / feedback', `<div class="notes-ro">${linkify(o.notes)}</div>`, { span: true }) : '')}
-    </div></fieldset>
-    ${can('delete', o).ok ? `<div class="danger-zone"><span>Không làm nữa? Dùng “Hủy đơn” để giữ lại lịch sử.</span><button type="button" class="btn btn-sm btn-danger-text" data-testid="action-delete" data-act="delete" data-write ${d.deleted ? 'disabled' : ''}>${ICONS.trash}Xóa đơn</button></div>` : ''}`;
+    </aside></div>`;
   const canComment = can('comment', o).ok && !d.deleted;
   const activity = `${canComment ? `<div class="comment-box"><label class="sr-only" for="comment-input">Bình luận</label>
       <textarea id="comment-input" data-testid="comment-input" placeholder="Viết bình luận… (Ctrl+Enter để gửi)"></textarea>
@@ -6781,7 +7570,7 @@ function loginHtml() {
   const wait = Math.max(0, Math.ceil((L.resendAt - Date.now()) / 1000));
   const apiUrl = trim(LS.raw('va.apiUrl'));
   const gid = !demo && L.step === 'email' ? googleClientId() : '';
-  return `<div class="login-stage"><div class="lg-mascot" aria-hidden="true"><img src="${L.error ? ASSETS.mascotTired : ASSETS.mascotWave}" alt="" draggable="false"><p class="lg-say">${esc(L.error ? 'Ơ, trục trặc xíu rồi…' : L.step === 'code' ? 'Check mail lấy mã đi nè 📬' : pick(['Ê, đăng nhập đi rồi mình nói chuyện tiếp 👀', 'Chào cục cưng! Vào làm việc thôi', 'Hello! Nay giao task gì đây?']))}</p></div><div class="login-card" data-testid="login-screen" role="main" aria-labelledby="lg-title">
+  return `<div class="login-stage"><div class="lg-mascot"><button type="button" class="lg-poke" data-lg-poke aria-label="Chọc ${BUDDY_NAME}"><img src="${L.error ? ASSETS.mascotTired : ASSETS.mascotWave}" alt="" draggable="false"></button><p class="lg-say" aria-live="polite">${esc(loginLine())}</p></div><div class="login-card" data-testid="login-screen" role="main" aria-labelledby="lg-title">
     <div class="lg-brand"><img class="brand-mark" src="${ASSETS.teamBadge}" alt="" width="34" height="34"><span class="brand-name">VA Tasks</span>${demo ? '<span class="demo-badge">DEMO</span>' : ''}</div>
     <h1 id="lg-title">${L.step === 'code' ? 'Nhập mã đăng nhập' : 'Đăng nhập'}</h1>
     <p class="muted lg-sub">${L.step === 'code' ? `Mã 6 số đã được gửi tới <b>${esc(L.email)}</b> (nếu Gmail này có trong danh sách). Mã có hiệu lực 10 phút.` : (gid ? 'Dùng tài khoản Google có trong danh sách thành viên của team VA.' : 'Nhập Gmail bạn dùng với team VA — chúng tôi gửi mã 6 số qua email, không cần mật khẩu.')}</p>
@@ -6854,6 +7643,14 @@ async function refreshGoogleConfig() {
     const cid = trim(p && p.googleClientId);
     if (cid !== googleClientId()) { LS.setRaw('va.googleClientId', cid); if (!S.user && Login.step === 'email') renderLogin(); }
   } catch (e) { /* offline: keep cached value */ }
+}
+// câu của Cún ở màn đăng nhập: đổi khi sang bước/lỗi mới, giữ nguyên khi chỉ vẽ lại (gõ phím…)
+const LG_LINE = { key: '', text: '' };
+function loginLine() {
+  const L = Login;
+  const key = L.error ? 'login_error:' + L.error : L.step === 'code' ? 'login_code' : 'login';
+  if (LG_LINE.key !== key) { LG_LINE.key = key; LG_LINE.text = say(key.split(':')[0]); }
+  return LG_LINE.text;
 }
 function renderLogin() {
   const root = $('#login-root');
