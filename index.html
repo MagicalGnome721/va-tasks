@@ -68,7 +68,7 @@
 
   --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
   --topbar-h: 56px;
-  --nav-w: 224px;
+  --nav-w: 176px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -1469,6 +1469,26 @@ body.rt-resizing, body.rt-resizing * { cursor: col-resize !important; user-selec
 .rt-cb.is-on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .rt-check { display: inline-block; width: 18px; color: var(--brand); font-weight: 700; }
 @media (max-width: 720px) { .rt-title { font-size: 24px; } .rt-search input { width: 100px; } .rt-scroll { max-height: none; } }
+.order-wrap.is-page { display: block; }
+.pg { max-width: 860px; margin: 8px auto 40px; padding: 8px 4px; }
+.pg-title { width: 100%; border: 0; outline: 0; background: none; resize: none; font: inherit; font-size: 38px; font-weight: 750; line-height: 1.2; color: var(--ink); padding: 0; margin: 0 0 14px; overflow: hidden; }
+.pg-title::placeholder { color: var(--faint); opacity: .7; }
+.pg-props { display: flex; flex-direction: column; gap: 2px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.pg-row { display: grid; grid-template-columns: 190px 1fr; align-items: start; gap: 8px; min-height: 36px; }
+.pg-key { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; padding: 8px 6px; border-radius: 6px; margin: 0; font-weight: 400; }
+.pg-ico { width: 18px; text-align: center; font-size: 13px; opacity: .85; }
+.pg-val { min-width: 0; }
+.pg-val > select, .pg-val > input, .pg-val > textarea, .pg-val .date-field input { width: 100%; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 7px 8px; font: inherit; font-size: 14px; color: var(--ink); resize: none; }
+.pg-val > select:hover, .pg-val > input:hover, .pg-val > textarea:hover { background: var(--surface-2); }
+.pg-val > select:focus, .pg-val > input:focus, .pg-val > textarea:focus { background: var(--surface); border-color: var(--line-strong); outline: none; }
+.pg-val > select:invalid, .pg-val > select option[value=""] { color: var(--faint); }
+.pg-val .check { padding: 7px 8px; display: inline-flex; gap: 6px; align-items: center; }
+.pg-auto { display: inline-block; padding: 8px; font-size: 14px; color: var(--muted); }
+.pg-val .pill { margin: 6px 8px; }
+.pg-row.has-error .pg-val > *:first-child, .pg-title-wrap.has-error .pg-title { box-shadow: inset 0 -2px 0 var(--err-fg); }
+.pg-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.pg-hint { font-size: 13px; }
+@media (max-width: 640px) { .pg-row { grid-template-columns: 1fr; gap: 0; } .pg-key { padding-bottom: 0; } .pg-title { font-size: 28px; } }
 </style>
 </head>
 <body>
@@ -5965,11 +5985,11 @@ async function adminAction(act) {
 // - Cấu hình bảng lưu riêng theo từng người (localStorage, theo email).
 // ============================================================================
 const RT_BASE_COLS = [ // cột hệ thống, đúng thứ tự cột trong Google Sheet
-  { k: 'id', label: 'ID', w: 100, icon: '№' },
-  { k: 'team', label: 'Team request', w: 130, icon: '◉' },
-  { k: 'project', label: 'Dự án', w: 120, icon: '◉' },
-  { k: 'assetType', label: 'Loại asset', w: 160, icon: '☰' },
-  { k: 'name', label: 'Tên yêu cầu', w: 270, icon: 'Aa' },
+  { k: 'id', label: 'ID', w: 78, icon: '№' },
+  { k: 'team', label: 'Team request', w: 112, icon: '◉' },
+  { k: 'project', label: 'Dự án', w: 84, icon: '◉' },
+  { k: 'assetType', label: 'Loại asset', w: 100, icon: '☰' },
+  { k: 'name', label: 'Tên yêu cầu', w: 250, icon: 'Aa' },
   { k: 'description', label: 'Mô tả yêu cầu', w: 260, icon: '≡', private: true },
   { k: 'briefLink', label: 'Link brief / reference', w: 170, icon: '🔗', private: true },
   { k: 'outputSpec', label: 'Thông số đầu ra (Optional)', w: 200, icon: '≡', private: true },
@@ -8199,11 +8219,14 @@ const MANUAL_STEPS = [
 function freshOrder() {
   const last = LS.get('va.ui.lastOrder', {}) || {};
   const projects = S.config.projects || [];
+  const proj = projects.some((p) => sameName(p, last.project)) ? last.project : (projects.length === 1 ? projects[0] : '');
+  // form tối giản kiểu Notion là mặc định; AI chỉ là tuỳ chọn (nút "Nhờ AI viết giúp")
+  const form = Rules.applyPropDefaults({ name: '', project: proj, assetType: '', team: (S.user && S.user.team) || '', priority: defaultPriority(), deadline: '', briefLink: '', description: '', quantity: 1, urgent: false, urgentReason: '' }, S.config.props);
   return {
-    phase: 'compose', busy: false, error: null, aiDown: null,
+    phase: 'page', busy: false, error: null, aiDown: null, form0: form,
     input: { message: '', project: projects.some((p) => sameName(p, last.project)) ? last.project : (projects.length === 1 ? projects[0] : ''), urgent: false, urgentReason: '', briefLink: '', deadline: '' },
     draftId: null, round: 0, history: [], questions: [], answers: [], result: null,
-    form: {}, step: 0, errors: {}, created: null, cid: uid(),
+    form: Object.assign({}, form), step: 0, errors: {}, created: null, cid: uid(),
   };
 }
 let Order = null;
@@ -8333,6 +8356,56 @@ function orderManualHtml(O) {
     </div>
   </section>`;
 }
+// ----- Trang tạo đơn tối giản (giống "New page" của Notion) -----
+const pgLabel = (k, fb) => { const d = Rules.propDef(S.config.props, k); return trim(d.label) || fb; };
+const pgSkip = (k) => { const d = Rules.propDef(S.config.props, k); return d.deleted || (!isVA() && Rules.propAccess(S.config.props, k) === 'hidden'); };
+function orderPageHtml(O) {
+  const F = O.form; const err = O.errors;
+  const prios = S.config.priorities || [];
+  const urgent = prios.length && sameName(F.priority, prios[0]);
+  const fe = (k) => (err[k] ? `<div class="field-error" role="alert">${esc(err[k])}</div>` : '');
+  const row = (k, ico, label, inner, o = {}) => (pgSkip(k) && !o.always) ? '' : `<div class="pg-row ${err[k] ? 'has-error' : ''}" data-f="${k}"><label class="pg-key" for="pg-${k}"><span class="pg-ico" aria-hidden="true">${ico}</span>${esc(label)}${o.req ? ' <span class="req">*</span>' : ''}</label><div class="pg-val">${inner}${fe(k)}</div></div>`;
+  const sel = (k, list, val, empty) => `<select id="pg-${k}" data-of="${k}" data-testid="order-field-${k}"><option value="">${esc(empty || 'Trống')}</option>${(list || []).map((v) => `<option value="${esc(v)}" ${sameName(v, val) ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  const nextId = Rules.nextId(S.tasks.filter((t) => !t._tmp).map((t) => t.id));
+  const P = Rules.propsOf(S.config);
+  const custom = Rules.liveCustomKeys(P).filter((k) => isVA() || Rules.propAccess(P, k) === 'edit');
+  const cxInput = (k) => {
+    const d = P.defs[k]; const ty = Rules.propType(P, k); const v = F[k] == null ? '' : F[k];
+    if (ty === 'select' && (d.options || []).length) return sel(k, d.options, v);
+    if (ty === 'checkbox') return `<label class="check"><input type="checkbox" id="pg-${k}" data-of="${k}" ${trim(v) ? 'checked' : ''}><span>Có</span></label>`;
+    if (ty === 'text') return `<textarea id="pg-${k}" data-of="${k}" rows="1" class="autosize" placeholder="Trống">${esc(v)}</textarea>`;
+    const it = ty === 'number' ? 'number' : ty === 'date' ? 'date' : 'text';
+    const ph = ty === 'multi_select' ? ((d.options || []).length ? 'Chọn trong: ' + d.options.join(', ') : 'Cách nhau bằng dấu phẩy') : ty === 'person' ? 'Tên thành viên' : ty === 'url' ? 'https://…' : 'Trống';
+    return `<input type="${it}" id="pg-${k}" data-of="${k}" value="${esc(v)}" placeholder="${esc(ph)}">`;
+  };
+  const ICO = { id: '№', project: '◉', assetType: '☰', team: '◉', priority: '◉', deadline: '▦', requestDate: '◷', briefLink: '🔗', description: '≡', quantity: '#', status: '◉', assignee: '👥' };
+  return `<section class="pg" data-testid="order-page">
+    ${O.aiFilled ? `<div class="ai-note" role="status">${ICONS.spark} AI đã điền giúp — bạn xem lại rồi bấm <b>Nộp đơn</b>.</div>` : ''}
+    <div class="pg-title-wrap ${err.name ? 'has-error' : ''}" data-f="name"><textarea id="pg-name" class="pg-title autosize" rows="1" data-of="name" data-testid="order-field-name" maxlength="200" placeholder="Tên đơn mới" aria-label="Tên đơn">${esc(F.name)}</textarea>${fe('name')}</div>
+    <div class="pg-props">
+      ${row('id', ICO.id, 'ID', `<span class="pg-auto mono">${esc(nextId)}</span>`, { always: true })}
+      ${row('project', ICO.project, pgLabel('project', 'Dự án'), sel('project', S.config.projects, F.project), { req: true })}
+      ${row('assetType', ICO.assetType, pgLabel('assetType', 'Hạng mục'), sel('assetType', S.config.assetTypes, F.assetType))}
+      ${row('team', ICO.team, pgLabel('team', 'Team'), sel('team', S.config.teams, F.team))}
+      ${row('priority', ICO.priority, pgLabel('priority', 'Priority'), `<select id="pg-priority" data-of="priority" data-testid="order-field-priority">${prios.map((p, i) => `<option value="${esc(p)}" ${sameName(p, F.priority) ? 'selected' : ''}>${esc(p)}${i === 0 ? ' — cần lý do' : ''}</option>`).join('')}</select>`)}
+      ${urgent ? row('urgentReason', '!', 'Lý do gấp', `<input type="text" id="pg-urgentReason" data-of="urgentReason" value="${esc(F.urgentReason)}" maxlength="500" placeholder="Ít nhất 5 ký tự">`, { req: true, always: true }) : ''}
+      ${row('deadline', ICO.deadline, pgLabel('deadline', 'Deadline mong muốn'), dateInputHtml({ id: 'pg-deadline', testid: 'order-field-deadline', value: F.deadline, min: today(), label: 'deadline' }))}
+      ${row('requestDate', ICO.requestDate, 'Ngày tạo', `<span class="pg-auto">${esc(Rules.ymdToDmy(today()))} ${esc(hhmm())}</span>`, { always: true })}
+      ${row('briefLink', ICO.briefLink, pgLabel('briefLink', 'Attachment'), `<input type="text" id="pg-briefLink" data-of="briefLink" data-testid="order-field-briefLink" value="${esc(F.briefLink)}" placeholder="Dán link file / brief / reference" autocomplete="off">`)}
+      ${row('quantity', ICO.quantity, pgLabel('quantity', 'Số lượng'), `<input type="number" id="pg-quantity" data-of="quantity" min="1" max="9999" step="1" value="${esc(F.quantity)}">`)}
+      ${row('description', ICO.description, pgLabel('description', 'Mô tả yêu cầu'), `<textarea id="pg-description" data-of="description" data-testid="order-field-description" rows="3" class="autosize" maxlength="5000" placeholder="Cần làm gì, số lượng, dùng ở đâu, thế nào là đạt…">${esc(F.description)}</textarea>`)}
+      ${custom.map((k) => row(k, '≡', P.defs[k].header, cxInput(k))).join('')}
+      ${row('status', ICO.status, 'Trạng thái xử lý', `<span class="pill" data-status="new"><span class="pill-text">${esc(Rules.labelOf('new'))}</span></span>`, { always: true })}
+      ${row('assignee', ICO.assignee, pgLabel('assignee', 'Assignee'), '<span class="pg-auto">VA sẽ nhận đơn</span>', { always: true })}
+    </div>
+    <div class="field-error" data-general-error ${err._ ? '' : 'hidden'} role="alert">${esc(err._ || '')}</div>
+    <div class="pg-actions">
+      <button type="button" class="btn btn-brand" data-testid="order-submit" data-act="order-submit" data-write ${O.busy ? 'disabled' : ''}>${O.busy ? '<span class="saving-spin" aria-hidden="true"></span>Đang nộp…' : 'Nộp đơn'}</button>
+      ${S.aiEnabled !== false ? `<button type="button" class="btn btn-ghost" data-act="order-ai" data-testid="order-use-ai" ${O.busy ? 'disabled' : ''}>${ICONS.spark} Nhờ AI viết giúp</button>` : ''}
+      <span class="muted pg-hint">Thời gian hoàn thành sẽ trao đổi trực tiếp với VA sau khi đơn được nhận.</span>
+    </div>
+  </section>`;
+}
 function orderDoneHtml(O) {
   const t = getTask(O.created.id) || O.created;
   const q = queueInfoOf(t);
@@ -8353,12 +8426,17 @@ function renderOrder(view) {
   const steps = [['compose', 'Mô tả'], ['questions', 'AI hỏi thêm'], ['preview', 'Xem lại & gửi']];
   const phaseIdx = O.phase === 'manual' ? -1 : O.phase === 'done' ? 3 : steps.findIndex((s) => s[0] === O.phase);
   let body;
+  if (O.phase === 'page') {
+    view.innerHTML = `<div class="order-wrap is-page">${orderPageHtml(O)}</div>`;
+    autosizeAll(view);
+    return;
+  }
   if (O.phase === 'questions') body = orderQuestionsHtml(O);
   else if (O.phase === 'preview') body = orderPreviewHtml(O);
   else if (O.phase === 'manual') body = orderManualHtml(O);
   else if (O.phase === 'done') body = orderDoneHtml(O);
   else body = orderComposeHtml(O);
-  view.innerHTML = `<div class="view-head"><div><h1 class="view-title">Tạo đơn</h1><p class="view-sub">${O.phase === 'manual' ? 'Form thủ công — 3 bước ngắn.' : 'Mô tả tự nhiên, AI giúp bạn viết thành đơn rõ ràng cho team VA.'}</p></div>
+  view.innerHTML = `<div class="view-head"><div><h1 class="view-title">Tạo đơn${O.phase !== 'done' && O.phase !== 'manual' ? ' với AI' : ''}</h1><p class="view-sub">${O.phase === 'manual' ? 'Form thủ công — 3 bước ngắn.' : O.phase === 'done' ? '' : 'Tuỳ chọn: mô tả tự nhiên, AI điền form giúp bạn. <button type="button" class="linklike" data-act="order-page" data-testid="order-back-page">← Quay lại form</button>'}</p></div>
     ${O.phase !== 'manual' && O.phase !== 'done' ? `<ol class="order-progress" aria-label="Tiến trình">${steps.map(([k, l], i) => `<li class="${i === phaseIdx ? 'is-current' : i < phaseIdx ? 'is-done' : ''}">${l}</li>`).join('')}</ol>` : ''}</div>
     <div class="order-wrap">${body}
       ${O.phase === 'compose' ? `<aside class="order-tips"><h2>Mẹo để đơn được làm nhanh</h2><ul><li><b>Số lượng</b> cụ thể (12 icon, 3 banner…)</li><li><b>Dùng vào đâu</b> — màn hình, sự kiện, kênh</li><li><b>Thế nào là đạt</b> — style mẫu, màu, kích thước</li><li>Khối lượng lớn (> 3 ngày) sẽ được <b>chia đợt</b> và giao dần.</li></ul></aside>` : ''}
@@ -8382,6 +8460,7 @@ function readOrderForm(view) {
   $$('[data-of]', view).forEach((x) => {
     const k = x.dataset.of;
     if (k === 'urgent') O.form.urgent = x.checked;
+    else if (x.type === 'checkbox') O.form[k] = x.checked ? 'TRUE' : '';
     else O.form[k] = x.value;
   });
   $$('.date-text', view).forEach((x) => { const v = readDate(x); if (v === null) okDate = false; else O.form.deadline = v; });
@@ -8439,11 +8518,11 @@ async function orderAi(view, answering) {
   if (S.view === 'new' && Order === O) { renderOrder(view); const f = view.querySelector(O.phase === 'questions' ? '#or-ans-0' : O.phase === 'preview' ? '#op-name' : O.phase === 'manual' ? '#om-name' : '#or-message'); if (f && !view.querySelector('.has-error')) f.focus(); else focusOrderError(view); }
 }
 function toManual(O, aiDown) {
-  O.phase = 'manual'; O.step = 0; O.errors = {};
+  O.phase = 'page'; O.step = 0; O.errors = {}; O.aiFilled = !!O.result;
   O.aiDown = aiDown || null;
   const base = O.result ? orderFormFromResult(O.result, O.input) : orderFormFromResult(null, O.input);
   if (!O.result) { base.name = trim(O.input.message).split(/\n/)[0].slice(0, 80); base.priority = defaultPriority(); }
-  O.form = Object.assign(base, { urgent: O.input.urgent, urgentReason: O.input.urgentReason, project: O.input.project });
+  O.form = Object.assign({}, O.form0 || {}, base, { urgent: O.input.urgent, urgentReason: O.input.urgentReason, project: O.input.project || base.project });
 }
 function orderInput(O) {
   const F = O.form;
@@ -8451,10 +8530,12 @@ function orderInput(O) {
   const input = {
     name: trim(F.name), description: String(F.description || '').replace(/\s+$/, ''), usage: String(F.usage || '').replace(/\s+$/, ''),
     quantity: trim(F.quantity) === '' ? null : Number(F.quantity), outputSpec: trim(F.outputSpec), acceptance: String(F.acceptance || '').replace(/\s+$/, ''),
-    assetType: trim(F.assetType), project: trim(F.project || O.input.project), team: (S.user && S.user.team) || '', deadline: trim(F.deadline),
+    assetType: trim(F.assetType), project: trim(F.project || O.input.project), team: trim(F.team) || (S.user && S.user.team) || '', deadline: trim(F.deadline),
     briefLink: trim(F.briefLink), priority: trim(F.priority), urgentReason: F.urgent ? trim(F.urgentReason) : '',
   };
+  if (O.phase === 'page') { F.urgent = prios.length > 0 && sameName(input.priority, prios[0]); input.urgentReason = F.urgent ? trim(F.urgentReason) : ''; }
   if (!F.urgent && prios.indexOf(input.priority) === 0) input.priority = prios[1] || input.priority;
+  Rules.liveCustomKeys(S.config.props).forEach((k) => { if (F[k] !== undefined && trim(F[k]) !== '') input[k] = F[k]; });
   return input;
 }
 function orderValidate(O, input) {
@@ -8463,6 +8544,7 @@ function orderValidate(O, input) {
   try { Rules.buildNewTask(input, Object.assign(localCtx(), { aiResult: O.phase === 'preview' ? O.result : null }), S.tasks.map((t) => t.id)); }
   catch (e0) { Object.assign(e, errFields(e0)); }
   if (e.priority && O.phase === 'manual' && !O.form.urgent) e.priority = 'Mức Khẩn cấp cần tick Gấp và lý do';
+  if (O.phase === 'page' && e.priority && O.form.urgent && trim(O.form.urgentReason).length < 5) { e.urgentReason = 'Lý do gấp cần ít nhất 5 ký tự'; delete e.priority; }
   if (e.urgentReason === undefined && e.priority && O.form.urgent && trim(O.form.urgentReason).length < 5) e.urgentReason = e.priority;
   return e;
 }
@@ -8521,7 +8603,11 @@ function bindOrderEvents(view) {
       case 'order-submit': orderSubmit(view); break;
       case 'step-next': orderStep(view, 1); break;
       case 'step-back': orderStep(view, -1); break;
-      case 'order-another': Order = freshOrder(); renderOrder(view); { const f = view.querySelector('#or-message'); if (f) f.focus(); } break;
+      case 'order-another': Order = freshOrder(); renderOrder(view); { const f = view.querySelector('#pg-name'); if (f) f.focus(); } break;
+      case 'order-ai': { readOrderForm(view); const keepF = Order.form; Order.form0 = keepF; Order.phase = 'compose'; Order.errors = {};
+        Order.input = Object.assign(Order.input, { message: [trim(keepF.name), trim(keepF.description)].filter(Boolean).join('\n'), project: keepF.project, briefLink: keepF.briefLink, deadline: keepF.deadline });
+        renderOrder(view); const f = view.querySelector('#or-message'); if (f) f.focus(); break; }
+      case 'order-page': readOrderCompose(view); Order.phase = 'page'; Order.errors = {}; Order.form = Object.assign({}, Order.form0 || Order.form); renderOrder(view); break;
       default: break;
     }
   });
@@ -8530,19 +8616,21 @@ function bindOrderEvents(view) {
     const t = e.target;
     if (t.id === 'or-message') { const c = view.querySelector('[data-count]'); if (c) c.textContent = `${t.value.length}/${Rules.MAX_ORDER_CHARS || 4000}`; Order.input.message = t.value; }
     if (t.classList.contains('autosize')) autosize(t);
-    const f = t.closest('.field.has-error'); if (f) { f.classList.remove('has-error'); const fe = f.querySelector('.field-error'); if (fe) fe.remove(); t.removeAttribute('aria-invalid'); }
+    const f = t.closest('.field.has-error, .pg-row.has-error, .pg-title-wrap.has-error'); if (f) { f.classList.remove('has-error'); const fe = f.querySelector('.field-error'); if (fe) fe.remove(); t.removeAttribute('aria-invalid'); }
   });
   view.addEventListener('change', (e) => {
     if (S.view !== 'new') return;
     const t = e.target;
     if (t.id === 'or-urgent') { const box = view.querySelector('.urgent-reason'); box.hidden = !t.checked; t.closest('.urgent-box').classList.toggle('is-on', t.checked); Order.input.urgent = t.checked; if (t.checked) view.querySelector('#or-urgent-reason').focus(); }
+    if (Order.phase === 'page' && t.dataset.of === 'priority') { readOrderForm(view); renderOrder(view); const u = view.querySelector('#pg-urgentReason') || view.querySelector('#pg-priority'); if (u) u.focus(); return; }
     if (t.dataset.of === 'urgent') { readOrderForm(view); renderOrder(view); const u = view.querySelector(t.checked ? '#om-urgentReason' : '#om-urgent'); if (u) u.focus(); }
   });
   view.addEventListener('keydown', (e) => {
     if (S.view !== 'new') return;
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      if (Order.phase === 'compose') orderAi(view, false); else if (Order.phase === 'questions') orderAi(view, true);
+      if (Order.phase === 'page') orderSubmit(view);
+      else if (Order.phase === 'compose') orderAi(view, false); else if (Order.phase === 'questions') orderAi(view, true);
       else if (Order.phase === 'preview' || (Order.phase === 'manual' && Order.step === MANUAL_STEPS.length - 1)) orderSubmit(view);
       else if (Order.phase === 'manual') orderStep(view, 1);
     }
@@ -8918,7 +9006,7 @@ function renderView(info = {}) {
     // the order form keeps its own state; only re-render on navigation or when it shows server data
     if (App.mounted !== key || info.force || (Order && Order.phase === 'done')) {
       // keep whatever the user typed if data/config arrive mid-edit
-      if (Order && view.querySelector('.order-card')) { if (Order.phase === 'compose') readOrderCompose(view); else if (Order.phase === 'preview' || Order.phase === 'manual') readOrderForm(view); }
+      if (Order && view.querySelector('.order-card')) { if (Order.phase === 'compose') readOrderCompose(view); else if (Order.phase === 'preview' || Order.phase === 'manual' || Order.phase === 'page') readOrderForm(view); }
       const hadFocus = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : '';
       App.mounted = key;
       if (!(Order && Order.busy) || info.force) renderOrder(view);
